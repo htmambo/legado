@@ -27,3 +27,5 @@ uuid = { version = "1", features = ["v4"] }
 thiserror = "1"
 if-addrs = "0.7"
 tokio = { version = "1", features = ["time", "sync"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "deflate", "json"] }
+encoding_rs = "0.8"

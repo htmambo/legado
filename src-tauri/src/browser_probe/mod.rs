@@ -103,7 +103,7 @@ fn get_window(app: &AppHandle, session_id: &str) -> CommandResult<WebviewWindow>
 }
 
 /// 在页面里执行 JS，拿回 JSON 序列化后的结果
-async fn eval_value(window: &WebviewWindow, js: String) -> CommandResult<serde_json::Value> {
+pub(crate) async fn eval_value(window: &WebviewWindow, js: String) -> CommandResult<serde_json::Value> {
     let (tx, rx) = tokio::sync::oneshot::channel::<String>();
     let tx = std::sync::Mutex::new(Some(tx));
     window
@@ -120,7 +120,7 @@ async fn eval_value(window: &WebviewWindow, js: String) -> CommandResult<serde_j
 }
 
 /// 轮询页面里的 `window.__probeResults[req_id]`，直到有值或超时
-async fn poll_result(
+pub(crate) async fn poll_result(
     window: &WebviewWindow,
     req_id: &str,
     timeout: Duration,

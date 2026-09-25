@@ -386,7 +386,7 @@ fn safe_file_name(input: &str) -> CommandResult<String> {
     Ok(input.to_string())
 }
 
-fn resolve_booksource_path(data_dir: &Path, file_name: &str, source_dir: Option<&str>) -> CommandResult<PathBuf> {
+pub(crate) fn resolve_booksource_path(data_dir: &Path, file_name: &str, source_dir: Option<&str>) -> CommandResult<PathBuf> {
     let safe = safe_file_name(file_name)?;
     let dir = if let Some(sd) = source_dir {
         let p = Path::new(sd);

@@ -73,38 +73,6 @@ pub fn booksource_eval(
     ))
 }
 
-#[tauri::command(rename_all = "camelCase")]
-pub fn booksource_search(
-) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("booksource_search", "需要 JS 引擎 + HTTP"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn booksource_book_info(
-) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("booksource_book_info", "需要 JS 引擎 + HTTP"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn booksource_chapter_list(
-) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("booksource_chapter_list", "需要 JS 引擎 + HTTP"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn booksource_chapter_content(
-) -> CommandResult<String> {
-    Err(not_implemented(
-        "booksource_chapter_content",
-        "需要 JS 引擎 + HTTP",
-    ))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn booksource_explore(
-) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("booksource_explore", "需要 JS 引擎 + HTTP"))
-}
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn booksource_call_fn(
@@ -112,11 +80,6 @@ pub fn booksource_call_fn(
     Err(not_implemented("booksource_call_fn", "需要 JS 引擎"))
 }
 
-#[tauri::command(rename_all = "camelCase")]
-pub fn booksource_http_proxy(
-) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("booksource_http_proxy", "需要 HTTP 客户端"))
-}
 
 #[tauri::command(rename_all = "camelCase")]
 pub fn booksource_check_update(
