@@ -2,7 +2,7 @@
 import { useMessage } from "naive-ui";
 import { storeToRefs } from "pinia";
 import { computed, ref, onMounted } from "vue";
-import { BUILTIN_USER_AGENT } from "@/composables/useAppConfig";
+import { BUILTIN_USER_AGENT } from "@/constants/builtin";
 import { browserProbeClearData } from "@/composables/useBrowserProbe";
 import { isTransportAvailable } from "@/composables/useTransport";
 import { useAppConfigStore, usePreferencesStore } from "@/stores";

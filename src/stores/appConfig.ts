@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import { BUILTIN_USER_AGENT, type AppConfig } from "@/composables/useAppConfig";
+import type { AppConfig } from "@/composables/useAppConfig";
+import { BUILTIN_USER_AGENT } from "@/constants/builtin";
 import { eventListenSync } from "@/composables/useEventBus";
 import { invokeWithTimeout } from "@/composables/useInvoke";
 import { isTransportAvailable } from "@/composables/useTransport";
