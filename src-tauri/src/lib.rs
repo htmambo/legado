@@ -69,6 +69,13 @@ pub fn run() {
             bookshelf::commands::bookshelf_get_cached_indices,
             bookshelf::commands::bookshelf_get_episode_progress,
             bookshelf::commands::bookshelf_save_episode_progress,
+            bookshelf::commands::bookshelf_get,
+            bookshelf::commands::bookshelf_update_progress,
+            bookshelf::commands::bookshelf_restore_source_switch,
+            bookshelf::commands::bookshelf_export_book_data,
+            bookshelf::commands::bookshelf_export_book,
+            bookshelf::commands::bookshelf_reveal_data_dir,
+            bookshelf::commands::bookshelf_reveal_export_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

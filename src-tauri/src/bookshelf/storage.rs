@@ -1,4 +1,7 @@
+use std::fs;
 use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
 
 use crate::bookshelf::model::{CachedChapter, ShelfBook};
 use crate::errors::{CommandError, CommandResult};
@@ -214,4 +217,56 @@ pub fn write_episode_progress(
     std::fs::write(&tmp, json)?;
     std::fs::rename(&tmp, &path)?;
     Ok(())
+}
+
+// ── 换源备份（整本换源前的快照） ──────────────────────────────────────────
+
+/// 换源备份快照
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceSwitchBackup {
+    pub book: ShelfBook,
+    pub chapters: Vec<CachedChapter>,
+    pub saved_at: i64,
+}
+
+/// 备份文件路径：`<dataDir>/bookshelf/source_switch_backup/<id>.json`
+pub fn source_switch_backup_file(data_dir: &Path, book_id: &str) -> PathBuf {
+    bookshelf_root(data_dir)
+        .join("source_switch_backup")
+        .join(format!("{}.json", sanitize_id(book_id)))
+}
+
+/// 写入换源备份（覆盖）
+pub fn write_source_switch_backup(
+    data_dir: &Path,
+    book_id: &str,
+    backup: &SourceSwitchBackup,
+) -> CommandResult<()> {
+    let path = source_switch_backup_file(data_dir, book_id);
+    let dir = path
+        .parent()
+        .ok_or_else(|| CommandError::other("source_switch_backup 路径无效"))?;
+    fs::create_dir_all(dir)?;
+    let tmp = dir.join(format!("{}.tmp", sanitize_id(book_id)));
+    let json = serde_json::to_string_pretty(backup)?;
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
+/// 读取换源备份；不存在返回 Ok(None)
+pub fn read_source_switch_backup(
+    data_dir: &Path,
+    book_id: &str,
+) -> CommandResult<Option<SourceSwitchBackup>> {
+    let path = source_switch_backup_file(data_dir, book_id);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path)?;
+    if raw.trim().is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(serde_json::from_str(&raw)?))
 }
