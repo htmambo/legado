@@ -351,13 +351,20 @@ export const useBookshelfStore = defineStore("bookshelf", () => {
     book: UpdateShelfBookPayload,
     chapters?: CachedChapter[],
   ): Promise<ShelfBook> {
-    const result = await invokeWithTimeout<ShelfBook>(
+    // 后端 bookshelf_update_book 命令签名是 CommandResult<()>，
+    // 不返回 book 实例；invokeWithTimeout 拿到的是 null。
+    await invokeWithTimeout<void>(
       "bookshelf_update_book",
       { book, chapters: chapters ?? null },
       TIMEOUT,
     );
     await loadBooks();
-    return result;
+    // loadBooks 已刷新内存，从 books 里重新查最新数据返回给调用方。
+    const updated = books.value.find((b) => b.id === book.id);
+    if (!updated) {
+      throw new Error(`更新书籍后未找到: ${book.id}`);
+    }
+    return updated;
   }
 
   /** 按字段局部更新书籍元信息 */

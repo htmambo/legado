@@ -542,7 +542,16 @@ watch(
   max-height: min(90dvh, 840px);
 }
 
-:global(.book-detail-dialog .n-card__content) {
+:global(.book-detail-dialog .n-card) {
+  display: flex;
+  flex-direction: column;
+}
+
+:global(.book-detail-dialog .n-card-content) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   padding: 0;
   overflow: hidden;
 }
@@ -567,7 +576,8 @@ watch(
 
 .bd-view,
 .bd-form {
-  max-height: min(72dvh, 680px);
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 18px;
 }
