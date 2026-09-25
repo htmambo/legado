@@ -29,34 +29,155 @@ pub struct CoverRequest {
     #[serde(default)]
     pub referer: Option<String>,
     #[serde(default)]
-    pub headers: Vec<(String, String)>,
+    pub headers: Option<std::collections::HashMap<String, String>>,
 }
 
-/// 封面缓存返回
+/// 封面缓存返回（与前端 BookCoverImg 的契约一致）
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CoverResolveResult {
-    pub mime: String,
-    pub base64: String,
+    /// 缓存文件绝对路径（前端 toFileSrcSync 转 asset:// 显示）
+    pub local_path: String,
+    /// `local://` 引用（可回写 coverUrl，BookCoverImg 识别为本地文件）
+    pub local_ref: String,
 }
 
-/// 查询封面缓存：命中返回 base64，未命中返回 NotFound
+fn ext_from_mime(mime: &str) -> &str {
+    match mime.split(';').next().unwrap_or("").trim() {
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/svg+xml" => "svg",
+        "image/avif" => "avif",
+        "image/bmp" => "bmp",
+        _ => "jpg",
+    }
+}
+
+/// 把字节写入封面缓存，返回 (localPath, localRef)
+fn write_cache(data_dir: &Path, key: &str, bytes: &[u8], mime: &str) -> CommandResult<(String, String)> {
+    let root = cover_root(data_dir);
+    std::fs::create_dir_all(&root)?;
+    let path = root.join(format!("{}.{}", key, ext_from_mime(mime)));
+    std::fs::write(&path, bytes)?;
+    let local_path = path.to_string_lossy().to_string();
+    Ok((local_path.clone(), format!("local://{}", local_path)))
+}
+
+/// 查找已缓存的封面文件（任意扩展名）
+fn find_cached(data_dir: &Path, key: &str) -> Option<PathBuf> {
+    let root = cover_root(data_dir);
+    for ext in ["jpg", "png", "gif", "webp", "svg", "avif", "bmp", "bin"] {
+        let p = root.join(format!("{}.{}", key, ext));
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+fn base64_decode(input: &str) -> CommandResult<Vec<u8>> {
+    let table = |c: u8| -> Option<u8> {
+        match c {
+            b'A'..=b'Z' => Some(c - b'A'),
+            b'a'..=b'z' => Some(c - b'a' + 26),
+            b'0'..=b'9' => Some(c - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    };
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    let mut acc: u32 = 0;
+    let mut nbits = 0u32;
+    for &b in input.as_bytes() {
+        if b == b'=' || b == b'\n' || b == b'\r' {
+            continue;
+        }
+        let Some(v) = table(b) else {
+            return Err(CommandError::invalid("data: URL base64 解码失败"));
+        };
+        acc = (acc << 6) | v as u32;
+        nbits += 6;
+        if nbits >= 8 {
+            nbits -= 8;
+            out.push((acc >> nbits) as u8);
+        }
+    }
+    Ok(out)
+}
+
+/// 查询/获取封面缓存：
+/// - data: URL（生成封面）：解码后直接写缓存返回
+/// - http(s)：命中直接返回；未命中带 Referer/headers 下载（reqwest，绕开 CORS）
 #[tauri::command(rename_all = "camelCase")]
-pub fn cover_resolve_cache(
+pub async fn cover_resolve_cache(
     state: State<'_, AppState>,
     request: CoverRequest,
 ) -> CommandResult<CoverResolveResult> {
     let key = url_key(&request.url);
-    let path = cover_root(&state.data_dir).join(format!("{}.bin", key));
-    if !path.exists() {
-        return Err(CommandError::not_found(format!("封面缓存未命中: {}", request.url)));
+
+    // data: URL —— 生成封面走这里
+    if let Some(data_part) = request.url.strip_prefix("data:") {
+        let (meta, payload) = data_part
+            .split_once(',')
+            .ok_or_else(|| CommandError::invalid("非法 data: URL"))?;
+        let mime = meta.trim_end_matches(";base64").trim();
+        let mime = if mime.is_empty() { "image/png" } else { mime };
+        let bytes = if meta.ends_with(";base64") {
+            base64_decode(payload)?
+        } else {
+            return Err(CommandError::invalid("仅支持 base64 的 data: URL"));
+        };
+        let (local_path, local_ref) = write_cache(&state.data_dir, &key, &bytes, mime)?;
+        return Ok(CoverResolveResult { local_path, local_ref });
     }
-    let bytes = std::fs::read(&path)?;
-    let mime = std::fs::read_to_string(path.with_extension("mime")).unwrap_or_else(|_| "image/jpeg".to_string());
-    Ok(CoverResolveResult {
-        mime,
-        base64: base64_encode(&bytes),
-    })
+
+    // 缓存命中
+    if let Some(path) = find_cached(&state.data_dir, &key) {
+        let local_path = path.to_string_lossy().to_string();
+        return Ok(CoverResolveResult {
+            local_ref: format!("local://{}", local_path),
+            local_path,
+        });
+    }
+
+    // 缓存未命中：下载
+    if !request.url.starts_with("http://") && !request.url.starts_with("https://") {
+        return Err(CommandError::invalid(format!(
+            "不支持的封面 URL: {}",
+            &request.url.chars().take(80).collect::<String>()
+        )));
+    }
+    let client = crate::booksource::engine::http_client();
+    let mut builder = client.get(&request.url);
+    if let Some(referer) = request.referer.as_deref().filter(|s| !s.is_empty()) {
+        builder = builder.header(reqwest::header::REFERER, referer);
+    }
+    if let Some(headers) = request.headers.as_ref() {
+        for (k, v) in headers {
+            builder = builder.header(k, v);
+        }
+    }
+    let resp = builder
+        .send()
+        .await
+        .map_err(|e| CommandError::other(format!("封面下载失败: {}", e)))?;
+    if !resp.status().is_success() {
+        return Err(CommandError::other(format!("封面下载 HTTP {}", resp.status())));
+    }
+    let mime = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| CommandError::other(format!("封面读取失败: {}", e)))?;
+    let (local_path, local_ref) = write_cache(&state.data_dir, &key, &bytes, &mime)?;
+    Ok(CoverResolveResult { local_path, local_ref })
 }
 
 /// 计算封面缓存总字节数
