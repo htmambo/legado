@@ -6,7 +6,7 @@
 //! 客户端、TTS 引擎、扩展 HTTP 等基础组件就绪后逐项替换。
 
 use serde::Deserialize;
-use tauri::{AppHandle, State};
+use tauri::State;
 
 use crate::errors::{CommandError, CommandResult};
 use crate::state::AppState;
@@ -372,91 +372,6 @@ pub fn export_save_file(
     ))
 }
 
-// ── 浏览器探测（内嵌 WebView 会话，书源调试页用） ────────────────────────────
-//
-// 真实现需要 Tauri 多 WebView / 窗口管理 + CDP 或 JS 桥，整套是独立 feature。
-// 目前全部 stub：只在书源调试页用户手动点"浏览器探测"时触发，报错信息明确。
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_create(_options: Option<serde_json::Value>) -> CommandResult<String> {
-    Err(not_implemented(
-        "browser_probe_create",
-        "需要内嵌浏览器会话管理（独立 WebView + JS 桥）",
-    ))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_navigate(
-    _session_id: String,
-    _url: String,
-    _options: Option<serde_json::Value>,
-) -> CommandResult<()> {
-    Err(not_implemented("browser_probe_navigate", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_eval(
-    _session_id: String,
-    _code: String,
-    _options: Option<serde_json::Value>,
-) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("browser_probe_eval", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_run(
-    _url: String,
-    _code: String,
-    _options: Option<serde_json::Value>,
-) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("browser_probe_run", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_get_cookies(_url: Option<String>) -> CommandResult<serde_json::Value> {
-    Err(not_implemented("browser_probe_get_cookies", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_set_cookie(
-    _url: String,
-    _cookie: serde_json::Value,
-) -> CommandResult<()> {
-    Err(not_implemented("browser_probe_set_cookie", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_set_user_agent(_user_agent: String) -> CommandResult<()> {
-    Err(not_implemented(
-        "browser_probe_set_user_agent",
-        "需要内嵌浏览器会话",
-    ))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_clear_data() -> CommandResult<()> {
-    Err(not_implemented("browser_probe_clear_data", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_show(_session_id: String) -> CommandResult<()> {
-    Err(not_implemented("browser_probe_show", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_hide(_session_id: String) -> CommandResult<()> {
-    Err(not_implemented("browser_probe_hide", "需要内嵌浏览器会话"))
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_close(_session_id: String) -> CommandResult<()> {
-    Ok(())
-}
-
-#[tauri::command(rename_all = "camelCase")]
-pub fn browser_probe_close_all() -> CommandResult<()> {
-    Ok(())
-}
 
 // ── 音频缓存代理（音乐播放器下载受 Referer 限制的音频） ─────────────────────
 //

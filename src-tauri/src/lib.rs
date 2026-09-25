@@ -1,6 +1,7 @@
 mod app_config;
 mod bookshelf;
 mod booksource;
+mod browser_probe;
 mod comic;
 mod cover;
 mod errors;
@@ -40,6 +41,7 @@ pub fn run() {
             let app_state = AppState::load(data_dir)
                 .map_err(|e| format!("AppState 初始化失败: {}", e))?;
             app.manage(app_state);
+            app.manage(browser_probe::BrowserProbeState::default());
 
             Ok(())
         })
@@ -175,18 +177,18 @@ pub fn run() {
             stubs::get_local_ips,
             stubs::open_dir_in_explorer,
             stubs::export_save_file,
-            stubs::browser_probe_create,
-            stubs::browser_probe_navigate,
-            stubs::browser_probe_eval,
-            stubs::browser_probe_run,
-            stubs::browser_probe_get_cookies,
-            stubs::browser_probe_set_cookie,
-            stubs::browser_probe_set_user_agent,
-            stubs::browser_probe_clear_data,
-            stubs::browser_probe_show,
-            stubs::browser_probe_hide,
-            stubs::browser_probe_close,
-            stubs::browser_probe_close_all,
+            browser_probe::browser_probe_create,
+            browser_probe::browser_probe_navigate,
+            browser_probe::browser_probe_eval,
+            browser_probe::browser_probe_run,
+            browser_probe::browser_probe_get_cookies,
+            browser_probe::browser_probe_set_cookie,
+            browser_probe::browser_probe_set_user_agent,
+            browser_probe::browser_probe_clear_data,
+            browser_probe::browser_probe_show,
+            browser_probe::browser_probe_hide,
+            browser_probe::browser_probe_close,
+            browser_probe::browser_probe_close_all,
             stubs::audio_resolve_cache,
         ])
         .run(tauri::generate_context!())
