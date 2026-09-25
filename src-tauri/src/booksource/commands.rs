@@ -332,6 +332,17 @@ pub fn booksource_resolve_path(
     Ok(path.to_string_lossy().to_string())
 }
 
+/// 在 VSCode 中打开书源文件（与 extension_open_in_vscode 同策略：返回绝对路径，
+/// 由前端决定如何拉起编辑器）
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_open_in_vscode(
+    state: State<'_, AppState>,
+    file_name: String,
+    source_dir: Option<String>,
+) -> CommandResult<String> {
+    booksource_resolve_path(state, file_name, source_dir)
+}
+
 // ── 草稿（AI 辅助生成书源时的中间产物） ────────────────────────────────────
 
 fn draft_path(data_dir: &Path, file_name: &str) -> CommandResult<PathBuf> {

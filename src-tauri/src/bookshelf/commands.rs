@@ -25,6 +25,44 @@ pub fn bookshelf_list(state: State<'_, AppState>) -> CommandResult<Vec<ShelfBook
     Ok(books.clone())
 }
 
+/// 移出书架：删 books.json 条目 + 清理该书章节目录 / 正文缓存 / 换源备份
+#[tauri::command(rename_all = "camelCase")]
+pub fn bookshelf_remove(state: State<'_, AppState>, id: String) -> CommandResult<()> {
+    {
+        let mut books = state.books.lock().expect("books mutex poisoned");
+        storage::find_book(&books, &id)?;
+        books.retain(|b| b.id != id);
+        storage::write_books(&state.data_dir, &books)?;
+    }
+    // 文件清理尽力而为，失败不影响删条目
+    let chapters = storage::chapters_file(&state.data_dir, &id);
+    if chapters.exists() {
+        let _ = std::fs::remove_file(chapters);
+    }
+    let content = storage::content_dir(&state.data_dir, &id);
+    if content.exists() {
+        let _ = std::fs::remove_dir_all(content);
+    }
+    let backup = storage::source_switch_backup_file(&state.data_dir, &id);
+    if backup.exists() {
+        let _ = std::fs::remove_file(backup);
+    }
+    Ok(())
+}
+
+/// 更新书籍隐私标记
+#[tauri::command(rename_all = "camelCase")]
+pub fn bookshelf_set_private(
+    state: State<'_, AppState>,
+    id: String,
+    is_private: bool,
+) -> CommandResult<()> {
+    let mut books = state.books.lock().expect("books mutex poisoned");
+    let target = storage::find_book_mut(&mut books, &id)?;
+    target.is_private = is_private;
+    storage::write_books(&state.data_dir, &books)
+}
+
 /// 加入书架：分配 UUID + 初始化进度字段 + 落盘 + 内存缓存
 ///
 /// JS 入参形状：`{ book: {...}, fileName: "x", sourceName: "y" }`
