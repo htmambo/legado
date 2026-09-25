@@ -67,6 +67,13 @@ let chapterChanging = false;
  */
 let lastTouchTime = 0;
 let transitionEndFired = false;
+/**
+ * 跨章提交时保持动画终态画面（slide track 停在 ±2w，显示下一章第一页 /
+ * 上一章最后一页），直到新章 pages 到达再复位——否则 track 会先回到基线
+ * 显示旧章末页，新章异步加载期间闪出一帧旧内容。
+ */
+const waitingForChapterPages = ref(false);
+let holdResetTimer: number | null = null;
 let activeAnimation: {
   action: FlipAction | null;
   commitOnFinish: boolean;
@@ -191,6 +198,21 @@ function clearAnimationTimer() {
   }
 }
 
+function clearHoldResetTimer() {
+  if (holdResetTimer !== null) {
+    window.clearTimeout(holdResetTimer);
+    holdResetTimer = null;
+  }
+}
+
+/** 跨章保持状态结束：track 瞬间回基线（此时中间格已是新章内容，视觉无缝） */
+function releaseChapterHold() {
+  waitingForChapterPages.value = false;
+  clearHoldResetTimer();
+  isAnimating.value = false;
+  resetVisualState();
+}
+
 function animationStaysInCurrentChapter(action: FlipAction): boolean {
   return action === "next" ? hasNextPage.value : hasPrevPage.value;
 }
@@ -198,6 +220,8 @@ function animationStaysInCurrentChapter(action: FlipAction): boolean {
 function finishAnimation(commit = true) {
   const action = activeAnimation.action;
   const shouldCommit = commit && activeAnimation.commitOnFinish && action !== null;
+  const crossingChapter =
+    shouldCommit && action !== null && props.mode === "slide" && !animationStaysInCurrentChapter(action);
 
   animationRunId += 1;
   clearAnimationTimer();
@@ -206,10 +230,28 @@ function finishAnimation(commit = true) {
     action: null,
     commitOnFinish: false,
   };
-  requestAnimationFrame(() => {
-    isAnimating.value = false;
-    resetVisualState();
-  });
+  if (crossingChapter) {
+    // 保持 slideSnapOffset（track 停在终态，画面 = 相邻章 boundary 页），
+    // 等 watch(props.pages) 或兜底定时器释放；置位 transitionEndFired
+    // 防止迟到的 transitionend 触发提前复位
+    waitingForChapterPages.value = true;
+    transitionEndFired = true;
+    clearHoldResetTimer();
+    holdResetTimer = window.setTimeout(() => {
+      if (waitingForChapterPages.value) {
+        releaseChapterHold();
+      }
+    }, 3000);
+  } else {
+    if (waitingForChapterPages.value) {
+      waitingForChapterPages.value = false;
+      clearHoldResetTimer();
+    }
+    requestAnimationFrame(() => {
+      isAnimating.value = false;
+      resetVisualState();
+    });
+  }
 
   if (shouldCommit && action) {
     emitAction(action);
@@ -224,6 +266,8 @@ function onAnimTransitionEnd() {
 
   const action = activeAnimation.action;
   const shouldCommit = activeAnimation.commitOnFinish && action !== null;
+  const crossingChapter =
+    shouldCommit && action !== null && props.mode === "slide" && !animationStaysInCurrentChapter(action);
 
   animationRunId += 1;
   clearAnimationTimer();
@@ -231,10 +275,20 @@ function onAnimTransitionEnd() {
     action: null,
     commitOnFinish: false,
   };
-  requestAnimationFrame(() => {
-    isAnimating.value = false;
-    resetVisualState();
-  });
+  if (crossingChapter) {
+    waitingForChapterPages.value = true;
+    clearHoldResetTimer();
+    holdResetTimer = window.setTimeout(() => {
+      if (waitingForChapterPages.value) {
+        releaseChapterHold();
+      }
+    }, 3000);
+  } else {
+    requestAnimationFrame(() => {
+      isAnimating.value = false;
+      resetVisualState();
+    });
+  }
 
   if (shouldCommit && action) {
     emitAction(action);
@@ -394,11 +448,15 @@ watch(
   { immediate: true },
 );
 
-// 新章节内容到来（pages 数组引用变化）→ 解除翻章锁，允许下一批手势输入
+// 新章节内容到来（pages 数组引用变化）→ 解除翻章锁，允许下一批手势输入；
+// 若处于跨章保持状态，此刻中间格已是新章内容，复位 track（同帧 patch，视觉无缝）
 watch(
   () => props.pages,
   () => {
     chapterChanging = false;
+    if (waitingForChapterPages.value) {
+      releaseChapterHold();
+    }
   },
 );
 
@@ -407,6 +465,9 @@ watch(
   (busy) => {
     if (!busy) {
       chapterChanging = false;
+      if (waitingForChapterPages.value) {
+        releaseChapterHold();
+      }
     }
   },
 );
