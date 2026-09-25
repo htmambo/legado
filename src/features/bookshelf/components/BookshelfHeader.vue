@@ -174,8 +174,8 @@ function handleMobileMenuSelect(key: string) {
   <div class="bs-header">
     <div class="bs-header__row">
       <div>
-        <h1 class="bs-header__title">书架</h1>
-        <p class="bs-header__sub">
+        <h1 class="bs-header__title" style="float: left">书架</h1>
+        <p class="bs-header__sub" style="float: left; padding-left: 20px; padding-top: 10px;">
           {{ privacyModeEnabled ? "隐私模式" : `${bookCount} 本书籍` }}
         </p>
       </div>
