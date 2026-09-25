@@ -561,9 +561,9 @@ export function useReaderModalHost(options: UseReaderModalHostOptions) {
       return;
     }
 
-    if (handlePageTurnKey(event)) {
-      return;
-    }
+    // 方向键 / a / d 由 capture 阶段的 onPageTurnKeyDownCapture 统一处理，
+    // 这里不再重复调 handlePageTurnKey，避免单次按键触发两次翻页（之前
+    // 双触发导致 scroll 模式 fallback 跨章 + 落到下一页）。
 
     switch (event.key) {
       case "AudioVolumeDown":

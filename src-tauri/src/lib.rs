@@ -1,3 +1,4 @@
+mod app_config;
 mod bookshelf;
 mod booksource;
 mod errors;
@@ -53,6 +54,9 @@ pub fn run() {
             extensions::commands::extension_delete,
             extensions::commands::extension_toggle,
             extensions::commands::extension_open_in_vscode,
+            app_config::app_config_get_all,
+            app_config::app_config_set,
+            app_config::app_config_reset,
             bookshelf::commands::bookshelf_list,
             bookshelf::commands::bookshelf_add,
             bookshelf::commands::bookshelf_save_chapters,
