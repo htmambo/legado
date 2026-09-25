@@ -971,16 +971,10 @@ async function updateReaderSession(patch: Partial<ReaderSessionSnapshot>): Promi
   for (const record of runtimePlugins.filter((item) => item.enabled)) {
     notifySessionListeners(record, currentReaderSession);
   }
-  // 这 4 个更新都改的是公共响应式状态 (theme/background/skin/appearanceVars)。
-  // 串行 await 会让 Vue 在每个状态变更后各触发一次 render，导致切换章节时
-  // 出现"先看到新内容 + 旧主题 → 主题追上 → 正常"的 flash。
-  // 用 Promise.all 让它们在同一个 microtask 内完成，Vue 合并成一次 render。
-  await Promise.all([
-    syncPublicThemeState(),
-    syncPublicBackgroundState(),
-    syncPublicSkinState(),
-    recomputeReaderAppearance(),
-  ]);
+  await syncPublicThemeState();
+  await syncPublicBackgroundState();
+  await syncPublicSkinState();
+  await recomputeReaderAppearance();
 }
 
 async function closeReaderSession(): Promise<void> {
