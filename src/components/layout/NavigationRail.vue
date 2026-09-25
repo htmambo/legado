@@ -248,7 +248,7 @@ const ICON_COMPONENTS: Record<string, Component> = {
   opacity: 1;
 }
 
-@media (max-width: 839px) {
+@media (max-width: 840px) {
   .nav-rail {
     display: none;
   }
