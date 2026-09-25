@@ -7,7 +7,7 @@ import { isTransportAvailable } from "@/composables/useTransport";
 
 const TIMEOUT = 10_000;
 
-const DEFAULT_CONFIG: AppConfig = {
+export const DEFAULT_CONFIG: AppConfig = {
   http_user_agent: BUILTIN_USER_AGENT,
   http_follow_redirects: true,
   http_connect_timeout_secs: 10,

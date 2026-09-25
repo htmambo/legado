@@ -13,6 +13,7 @@ import { ref, computed, watch } from "vue";
 import { eventListenSync } from "./useEventBus";
 import { invokeWithTimeout } from "./useInvoke";
 import { isTransportAvailable } from "./useTransport";
+import { DEFAULT_CONFIG } from "@/stores/appConfig";
 
 // ── 类型定义（与 Rust AppConfig 结构体对齐） ─────────────────────────────
 
@@ -127,81 +128,10 @@ export const BUILTIN_USER_AGENT =
 
 // ── 全局状态（单例） ──────────────────────────────────────────────────────
 
-const config = ref<AppConfig>({
-  http_user_agent: BUILTIN_USER_AGENT,
-  http_follow_redirects: true,
-  http_connect_timeout_secs: 10,
-  http_ignore_tls_errors: true,
-  http_doh_server: "none",
-  proxy_mode: "system",
-  proxy_type: "http",
-  proxy_host: "",
-  proxy_port: 0,
-  proxy_username: "",
-  proxy_password: "",
-  engine_timeout_secs: 30,
-  booksource_watcher_enabled: false,
-  browser_probe_enabled: true,
-  browser_probe_user_agent: "",
-  browser_probe_timeout_secs: 0,
-  browser_probe_visible_by_default: false,
-  browser_probe_force_visible: false,
-  browser_probe_persist_profile: true,
-  comic_cache_enabled: true,
-  ui_theme: "auto",
-  ui_density: "standard",
-  ui_enable_aplus_tracking: true,
-  video_player_type: "videojs",
-  video_default_rate: 1.0,
-  video_auto_next: true,
-  video_quality_prefer: "auto",
-  video_remember_progress: true,
-  video_seek_step_secs: 10,
-  video_vjs_preload: "auto",
-  video_vjs_pip: true,
-  video_xg_download: false,
-  video_dp_danmaku: false,
-  video_dp_theme: "#00b1ff",
-  video_autoplay: false,
-  web_server_enabled: false,
-  web_server_port: 7688,
-  web_server_dist_path: "",
-  request_min_delay_ms: 300,
-  cache_prefetch_count: 3,
-  cache_prefetch_concurrency: 2,
-  export_prefetch_concurrency: 3,
-  sync_enabled: false,
-  sync_provider: "webdav",
-  sync_profile_id: "default",
-  sync_webdav_url: "",
-  sync_webdav_username: "",
-  sync_webdav_root_dir: "legado-sync",
-  sync_webdav_allow_http: false,
-  sync_trigger_enabled: true,
-  sync_timer_enabled: false,
-  sync_timer_interval_secs: 900,
-  sync_trigger_on_startup: true,
-  sync_trigger_on_resume: true,
-  sync_trigger_on_unlock_resume: true,
-  sync_trigger_on_bookshelf_change: false,
-  sync_trigger_on_booksource_change: false,
-  sync_trigger_on_settings_change: false,
-  sync_scope_bookshelf: true,
-  sync_scope_reading_progress: true,
-  sync_scope_booksources: true,
-  sync_scope_reader_settings: true,
-  sync_scope_app_settings: true,
-  sync_scope_source_flags: false,
-  sync_scope_extensions: false,
-  sync_scope_script_config: false,
-  sync_mobile_foreground_only: true,
-  sync_mobile_screen_on_only: true,
-  sync_mobile_wifi_only: true,
-  sync_mobile_pause_on_low_battery: true,
-  sync_mobile_startup_delay_ms: 5000,
-  sync_mobile_resume_delay_ms: 1500,
-  sync_baidu_app_name: "legado-tauri",
-});
+// 复用 appConfig.ts 的 DEFAULT_CONFIG，确保两端默认值唯一来源。
+// 之前这里有一份重复定义，且漏掉了 sync_* 等 19 个新字段，并和
+// appConfig.ts 的 video_player_type / video_autoplay 不一致。
+const config = ref<AppConfig>({ ...DEFAULT_CONFIG });
 
 /** 正在保存中的配置 key（用于 UI loading 状态） */
 const savingKey = ref<string | null>(null);
