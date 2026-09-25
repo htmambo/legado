@@ -62,8 +62,14 @@ export const useReadingGoalStore = defineStore("readingGoal", () => {
   const goalMinutes = computed(() => config.state.goalMinutes);
   const goalType = computed(() => config.state.goalType);
   const goalWords = computed(() => config.state.goalWords);
-  const todayMinutes = computed(() => config.state.todayMinutes);
-  const todayWords = computed(() => config.state.todayWords);
+  // 自然日校验：跨日未触发 checkTodayReset 时按 0 暴露，
+  // 避免昨天累计的 todayMinutes 被今天的 UI 当成"今日进度"显示。
+  const todayMinutes = computed(() =>
+    config.state.lastReadDate === getTodayString() ? config.state.todayMinutes : 0,
+  );
+  const todayWords = computed(() =>
+    config.state.lastReadDate === getTodayString() ? config.state.todayWords : 0,
+  );
   const streakDays = computed(() => config.state.streakDays);
   const lastReadDate = computed(() => config.state.lastReadDate);
   const streakHistory = computed(() => config.state.streakHistory);

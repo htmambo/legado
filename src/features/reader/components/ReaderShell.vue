@@ -8,6 +8,7 @@ import { useReaderSessionStore } from "@/features/reader/stores/readerSession";
 import { useReadingStats } from "@/composables/useReadingStats";
 import { usePrivacyModeStore } from "@/stores/privacyMode";
 import { useFinishAnimation } from "@/composables/useFinishAnimation";
+import { useReadingGoalStore } from "@/stores/readingGoal";
 import { useReadingRecordsStore } from "@/stores/readingRecords";
 import { safeRandomUUID } from "@/utils/uuid";
 import { useKeyboardShortcuts } from "@/composables/useKeyboardShortcuts";
@@ -112,6 +113,7 @@ function finishSession() {
   const durationMs = Date.now() - sessionStartTime.value
   const wordCount = content.value ? content.value.length : 0
   recordSession(bookId, durationMs, wordCount)
+  void useReadingGoalStore().addReadingMinutes(Math.round(durationMs / 60000))
   const endPage = getPageOffset()
   const pagesRead = Math.max(1, Math.abs(endPage - sessionRecStart.value.startPage))
   const coverUrl = typeof bookInfo.value?.coverUrl === 'string' ? bookInfo.value.coverUrl : ''
