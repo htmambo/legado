@@ -56,18 +56,26 @@ try {
   throw err;
 }
 
-// 隐藏首屏骨架屏（过渡动画后移除）
+// 隐藏首屏骨架屏（过渡动画后移除）；但如果 boot 阶段已经累积了错误，
+// 就保留覆盖层，让用户能看到诊断信息。
 const skeleton = document.getElementById("app-skeleton");
 if (skeleton) {
-  skeleton.classList.add("hidden");
-  const removeSkeleton = () => {
-    if (skeleton.parentNode) {
-      skeleton.remove();
-    }
-  };
-  skeleton.addEventListener("transitionend", removeSkeleton, { once: true });
-  // Android WebView 有时不触发 transitionend，500ms 后强制移除
-  setTimeout(removeSkeleton, 500);
+  const hasBootError = window.__LEGADO_HAS_BOOT_ERROR?.() === true;
+  if (hasBootError) {
+    console.warn(
+      "[BOOT][Frontend] 启动期已捕获异常，骨架屏/错误覆盖层保持显示，由用户手动关闭",
+    );
+  } else {
+    skeleton.classList.add("hidden");
+    const removeSkeleton = () => {
+      if (skeleton.parentNode) {
+        skeleton.remove();
+      }
+    };
+    skeleton.addEventListener("transitionend", removeSkeleton, { once: true });
+    // Android WebView 有时不触发 transitionend，500ms 后强制移除
+    setTimeout(removeSkeleton, 500);
+  }
 }
 
 warmupWebView();

@@ -31,8 +31,9 @@
       }
       #app-skeleton.boot-error {
         align-items: flex-start;
-        justify-content: center;
-        padding: 12vh 24px 24px;
+        justify-content: flex-start;
+        padding: 4vh 16px 16px;
+        overflow-y: auto;
       }
       .skeleton-spinner {
         width: 32px;
@@ -43,7 +44,7 @@
         animation: spin 0.7s linear infinite;
       }
       .skeleton-error {
-        width: min(560px, 100%);
+        width: min(720px, 100%);
         border: 1px solid rgba(239, 68, 68, 0.28);
         border-radius: 12px;
         background: rgba(24, 24, 27, 0.96);
@@ -55,12 +56,38 @@
         font-size: 18px;
         font-weight: 700;
       }
-      .skeleton-error__message {
+      .skeleton-error__count {
+        margin-top: 4px;
+        font-size: 13px;
+        color: #fca5a5;
+      }
+      .skeleton-error__list {
         margin-top: 12px;
+        max-height: 60vh;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-right: 4px;
+      }
+      .skeleton-error__item {
+        border: 1px solid rgba(239, 68, 68, 0.18);
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: rgba(0, 0, 0, 0.18);
+      }
+      .skeleton-error__item-meta {
+        font-size: 12px;
+        color: #a1a1aa;
+        margin-bottom: 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .skeleton-error__item-msg {
         white-space: pre-wrap;
         word-break: break-word;
         color: #e4e4e7;
-        line-height: 1.6;
+        line-height: 1.55;
+        font-size: 13px;
       }
       .skeleton-error__hint {
         margin-top: 14px;
@@ -86,7 +113,17 @@
           color: #18181b;
           box-shadow: 0 18px 50px rgba(24, 24, 27, 0.16);
         }
-        .skeleton-error__message {
+        .skeleton-error__count {
+          color: #b91c1c;
+        }
+        .skeleton-error__item {
+          border-color: rgba(239, 68, 68, 0.2);
+          background: rgba(0, 0, 0, 0.03);
+        }
+        .skeleton-error__item-meta {
+          color: #71717a;
+        }
+        .skeleton-error__item-msg {
           color: #27272a;
         }
         .skeleton-error__hint {
@@ -95,7 +132,7 @@
       }
       @keyframes spin {
         to {
-          transform: rotate(360deg);
+          transform: translateX(0) rotate(360deg);
         }
       }
     </style>
@@ -108,13 +145,23 @@
     <script>
       (() => {
         const BOOT_TIMEOUT_MS = 15000;
+        const MAX_ERROR_ITEMS = 50; // 防止错误风暴把页面撑爆
         const state = {
           stage: "html-ready",
-          errorShown: false,
+          /** 已经有错误进入错误覆盖层（用于阻止 main.ts 自动隐藏骨架屏） */
+          hasBootError: false,
+          /** 已累积的错误条目（[{source, message}]） */
+          errors: [],
+          /** 错误覆盖层 DOM 引用 */
+          errorOverlayEl: null,
+          /** 错误列表 DOM 引用 */
+          errorListEl: null,
+          /** 错误计数 DOM 引用 */
+          errorCountEl: null,
         };
 
         function escapeHtml(value) {
-          return String(value).replace(/[&<>\"']/g, (ch) => {
+          return String(value).replace(/[&<>"']/g, (ch) => {
             if (ch === "&") return "&amp;";
             if (ch === "<") return "&lt;";
             if (ch === ">") return "&gt;";
@@ -138,22 +185,6 @@
           document.head.appendChild(s);
         }
 
-        function renderBootError(message) {
-          if (state.errorShown) return;
-          state.errorShown = true;
-          loadVConsoleForDebug();
-          const skeleton = document.getElementById("app-skeleton");
-          if (!skeleton) return;
-          skeleton.classList.remove("hidden");
-          skeleton.classList.add("boot-error");
-          skeleton.innerHTML =
-            '<div class="skeleton-error">' +
-            '<div class="skeleton-error__title">应用启动失败</div>' +
-            `<div class="skeleton-error__message">${escapeHtml(message)}</div>` +
-            '<div class="skeleton-error__hint">请按 F12 打开 DevTools 查看报错；如果连页面脚本都没起起来，请检查正式版资源文件是否完整。</div>' +
-            "</div>";
-        }
-
         function formatReason(reason) {
           if (!reason) return "未知错误";
           if (typeof reason === "string") return reason;
@@ -168,28 +199,104 @@
           return String(reason);
         }
 
+        function pushError(source, message) {
+          // 写一份到 console，方便带 devtools 的同学看完整 stack
+          // eslint-disable-next-line no-console
+          console.error(`[BOOT][${source}]`, message);
+          state.errors.push({ source, message, ts: new Date() });
+          if (state.errors.length > MAX_ERROR_ITEMS) {
+            state.errors.splice(0, state.errors.length - MAX_ERROR_ITEMS);
+          }
+          renderBootError();
+          // 顺手写一份到 Rust 的 frontend.log（命令未注册时会静默失败，不阻塞 UI）
+          try {
+            if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke) {
+              window.__TAURI_INTERNALS__.invoke("frontend_log", {
+                level: "error",
+                message: `[${source}] ${String(message).slice(0, 2000)}`,
+              }).catch(() => {});
+            }
+          } catch (_) {
+            /* ignore */
+          }
+        }
+
+        function ensureOverlay() {
+          if (state.errorOverlayEl) return;
+          const skeleton = document.getElementById("app-skeleton");
+          if (!skeleton) return;
+          loadVConsoleForDebug();
+          skeleton.classList.remove("hidden");
+          skeleton.classList.add("boot-error");
+          skeleton.innerHTML =
+            '<div class="skeleton-error">' +
+            '<div class="skeleton-error__title">应用启动异常</div>' +
+            '<div class="skeleton-error__count" data-role="count"></div>' +
+            '<div class="skeleton-error__list" data-role="list"></div>' +
+            '<div class="skeleton-error__hint">请按 F12 打开 DevTools 查看完整报错；详细日志同时已写入 frontend.log。</div>' +
+            "</div>";
+          state.errorOverlayEl = skeleton.querySelector(".skeleton-error");
+          state.errorCountEl = skeleton.querySelector('[data-role="count"]');
+          state.errorListEl = skeleton.querySelector('[data-role="list"]');
+        }
+
+        function renderBootError() {
+          state.hasBootError = true;
+          ensureOverlay();
+          if (!state.errorOverlayEl) return;
+
+          const total = state.errors.length;
+          state.errorCountEl.textContent =
+            total === 1
+              ? "捕获到 1 条异常"
+              : `捕获到 ${total} 条异常（仅显示最近 ${MAX_ERROR_ITEMS} 条）`;
+
+          // 用 DocumentFragment 一次性重建列表，避免抖动
+          const frag = document.createDocumentFragment();
+          for (let i = state.errors.length - 1; i >= 0; i--) {
+            const item = state.errors[i];
+            const div = document.createElement("div");
+            div.className = "skeleton-error__item";
+            const meta = document.createElement("div");
+            meta.className = "skeleton-error__item-meta";
+            meta.textContent = `[${escapeHtml(item.source)}] ${item.ts.toISOString()}`;
+            const msg = document.createElement("div");
+            msg.className = "skeleton-error__item-msg";
+            msg.textContent = item.message;
+            div.appendChild(meta);
+            div.appendChild(msg);
+            frag.appendChild(div);
+          }
+          state.errorListEl.replaceChildren(frag);
+        }
+
         window.__LEGADO_SET_BOOT_STAGE = (stage) => {
           state.stage = stage;
         };
         window.__LEGADO_SHOW_BOOT_ERROR = (message) => {
-          renderBootError(message);
+          pushError("BOOT", message);
         };
+        // 给 main.ts 用：询问是否已被错误覆盖层接管
+        window.__LEGADO_HAS_BOOT_ERROR = () => state.hasBootError;
+        // 暴露当前已收集的错误，给 Vue 端在 app mounted 后做兜底恢复
+        window.__LEGADO_GET_BOOT_ERRORS = () => state.errors.slice();
 
         window.addEventListener("error", (event) => {
           const details =
             event.error?.stack ||
             event.message ||
             `资源加载失败: ${event.filename || "unknown file"}`;
-          renderBootError(details);
+          pushError("window.error", details);
         });
 
         window.addEventListener("unhandledrejection", (event) => {
-          renderBootError(`未处理的 Promise 异常:\n${formatReason(event.reason)}`);
+          pushError("unhandledrejection", formatReason(event.reason));
         });
 
         window.setTimeout(() => {
-          if (state.stage !== "app-mounted" && !state.errorShown) {
-            renderBootError(
+          if (state.stage !== "app-mounted" && !state.hasBootError) {
+            pushError(
+              "boot-timeout",
               `前端入口在 ${BOOT_TIMEOUT_MS / 1000}s 内没有完成挂载，当前阶段: ${state.stage}`,
             );
           }

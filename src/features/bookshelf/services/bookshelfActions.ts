@@ -201,27 +201,43 @@ export function useBookshelfActions(message: MessageApi) {
       : uiStore.switchTargetChapters;
   }
 
-  async function handleTxtImported(payload: {
-    title: string;
-    author: string;
-    chapters: Array<{ title: string; content: string }>;
-    preface: string;
-  }) {
+  async function handleTxtImported(
+    payload: {
+      title: string;
+      author: string;
+      chapters: Array<{ title: string; content: string }>;
+      preface: string;
+    },
+    callbacks?: {
+      ack?: () => void;
+      fail?: (message: string) => void;
+    },
+  ) {
     try {
       await bookshelfStore.importLocalTxt(payload);
+      callbacks?.ack?.();
       message.success(`《${payload.title}》已导入书架，共 ${payload.chapters.length} 章`);
     } catch (error: unknown) {
-      message.error(`导入失败: ${error instanceof Error ? error.message : String(error)}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      callbacks?.fail?.(msg);
+      message.error(`导入失败: ${msg}`);
     }
   }
 
-  async function handleCbzImported(payload: {
-    title: string;
-    pages: string[];
-    coverUrl: string;
-  }) {
+  async function handleCbzImported(
+    payload: {
+      title: string;
+      pages: string[];
+      coverUrl: string;
+    },
+    callbacks?: {
+      ack?: () => void;
+      fail?: (message: string) => void;
+    },
+  ) {
     try {
       const shelfBook = await bookshelfStore.importLocalCbz(payload);
+      callbacks?.ack?.();
       message.success(`《${payload.title}》已导入书架，共 ${payload.pages.length} 页`);
 
       // 在内存中缓存 blobs（供当前会话中使用）
@@ -235,7 +251,9 @@ export function useBookshelfActions(message: MessageApi) {
       readerStore.setCachedChapters(cached);
       readerStore.openAt(0);
     } catch (error: unknown) {
-      message.error(`导入失败: ${error instanceof Error ? error.message : String(error)}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      callbacks?.fail?.(msg);
+      message.error(`导入失败: ${msg}`);
     }
   }
 

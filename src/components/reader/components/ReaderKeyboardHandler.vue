@@ -33,14 +33,18 @@ function handleKeyDown(event: KeyboardEvent) {
   switch (event.key) {
     case "ArrowLeft":
     case "ArrowUp":
+      // 阻止全局焦点导航（useFocusNavigation）也消费方向键
       event.preventDefault();
-      readerActions.gotoPrevBoundary();
+      event.stopPropagation();
+      // 按"页"前进：paged 模式翻页，scroll 模式滚一页，comic / video no-op
+      readerActions.volumePagePrev();
       break;
 
     case "ArrowRight":
     case "ArrowDown":
       event.preventDefault();
-      readerActions.gotoNextBoundary();
+      event.stopPropagation();
+      readerActions.volumePageNext();
       break;
 
     case "PageUp":
@@ -110,15 +114,6 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener("keydown", handleKeyDown, { capture: true });
 });
-</script>
-
-<script lang="ts">
-export function useReaderKeyboard(options?: KeyboardHandlerOptions) {
-  return {
-    onKeyDown: handleKeyDown,
-    options,
-  };
-}
 </script>
 
 <template>

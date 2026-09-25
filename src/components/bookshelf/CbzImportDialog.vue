@@ -118,7 +118,7 @@ async function doImport() {
   })
 
   importProgress.value = 100
-  phase.value = "done"
+  // 不再直接切到 "done"——父组件持久化完成后会调 ack()/fail(msg)
 }
 
 // ── 关闭 & 重置 ───────────────────────────────────────────────────────────
@@ -154,6 +154,19 @@ useOverlayBackstack(() => props.show && phase.value !== "extracting" && phase.va
 const canClose = computed(() => phase.value !== "extracting" && phase.value !== "importing")
 
 const pageCountLabel = computed(() => `${pages.value.length} 页`)
+
+// ── 父组件调用：告知持久化结果 ────────────────────────────────────────────
+
+defineExpose({
+  ack() {
+    phase.value = "done";
+  },
+  fail(message: string) {
+    errorMsg.value = message;
+    phase.value = "preview";
+    importProgress.value = 0;
+  },
+});
 </script>
 
 <template>

@@ -189,7 +189,8 @@ async function doImport() {
   });
 
   importProgress.value = 100;
-  phase.value = "done";
+  // 注意：不在这里直接切到 "done"——父组件的持久化可能失败。
+  // 父组件处理完后会调 ack()（成功）或 fail(msg)（失败）。
 }
 
 // ── 关闭 & 重置 ───────────────────────────────────────────────────────────
@@ -230,6 +231,22 @@ function toggleExpand(id: string) {
 }
 
 const canClose = computed(() => phase.value !== "importing");
+
+// ── 父组件调用：告知持久化结果 ────────────────────────────────────────────
+//
+// 父组件 `@imported` 处理函数返回 Promise；成功 → ack()；失败 → fail(msg)。
+// 这样可以避免"假装成功"——弹窗只在真实落盘后才显示"完成"。
+
+defineExpose({
+  ack() {
+    phase.value = "done";
+  },
+  fail(message: string) {
+    errorMsg.value = message;
+    phase.value = "preview";
+    importProgress.value = 0;
+  },
+});
 </script>
 
 <template>

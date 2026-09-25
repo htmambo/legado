@@ -507,16 +507,25 @@ export function useReaderModalHost(options: UseReaderModalHostOptions) {
 
     switch (event.key) {
       case "ArrowRight":
+      case "ArrowDown":
       case "d":
       case "D":
         event.preventDefault();
-        options.flipNext();
+        // 阻止全局焦点导航（useFocusNavigation）也消费方向键
+        event.stopPropagation();
+        // 用 volumePageNext 而不是 flipNext：
+        // paged 模式：页内翻页（不跨章）
+        // scroll 模式：先 scrollModeRef.pageDown()，滚到底再 fallback 跨章
+        // comic / video：no-op
+        options.volumePageNext();
         return true;
       case "ArrowLeft":
+      case "ArrowUp":
       case "a":
       case "A":
         event.preventDefault();
-        options.flipPrev();
+        event.stopPropagation();
+        options.volumePagePrev();
         return true;
       default:
         return false;

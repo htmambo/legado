@@ -8,7 +8,7 @@ export interface SourceOption {
   description: string
 }
 
-defineProps<{
+const props = defineProps<{
   sources: SourceOption[]
 }>()
 
@@ -34,11 +34,11 @@ function toggleSource(name: string) {
 }
 
 function selectAll() {
-  selected.value = new Set(sources.value?.map((s) => s.name) ?? [])
+  selected.value = new Set((props.sources ?? []).map((s) => s.name))
 }
 
 async function handleImport() {
-  const targets = (sources.value ?? []).filter((s) => selected.value.has(s.name))
+  const targets = (props.sources ?? []).filter((s) => selected.value.has(s.name))
   if (targets.length === 0) {
     emit('next')
     return

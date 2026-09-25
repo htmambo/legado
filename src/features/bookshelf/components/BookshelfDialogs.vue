@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { WholeBookSwitchedPayload } from "@/components/reader/types";
 import type { CachedChapter, ChapterItem, ShelfBook } from "@/stores";
 import BookCoverGeneratorDialog from "@/components/bookshelf/BookCoverGeneratorDialog.vue";
@@ -7,6 +8,16 @@ import BookExportDialog from "@/components/bookshelf/BookExportDialog.vue";
 import BookSourceSwitchDialog from "@/components/explore/BookSourceSwitchDialog.vue";
 import TxtImportDialog from "@/features/local-txt/TxtImportDialog.vue";
 import CbzImportDialog from "@/components/bookshelf/CbzImportDialog.vue";
+
+interface TxtImportDialogHandle {
+  ack: () => void;
+  fail: (message: string) => void;
+}
+
+interface CbzImportDialogHandle {
+  ack?: () => void;
+  fail?: (message: string) => void;
+}
 
 defineProps<{
   showSourceSwitchDialog: boolean;
@@ -52,6 +63,30 @@ const emit = defineEmits<{
     },
   ): void;
 }>();
+
+const txtImportRef = ref<TxtImportDialogHandle | null>(null);
+const cbzImportRef = ref<CbzImportDialogHandle | null>(null);
+
+function ackTxtImport() {
+  txtImportRef.value?.ack();
+}
+
+function failTxtImport(msg: string) {
+  txtImportRef.value?.fail(msg);
+}
+
+function ackCbzImport() {
+  cbzImportRef.value?.ack?.();
+}
+
+function failCbzImport(msg: string) {
+  cbzImportRef.value?.fail?.(msg);
+}
+
+defineExpose({
+  txtImport: { ack: ackTxtImport, fail: failTxtImport },
+  cbzImport: { ack: ackCbzImport, fail: failCbzImport },
+});
 </script>
 
 <template>
@@ -102,12 +137,14 @@ const emit = defineEmits<{
   />
 
   <TxtImportDialog
+    ref="txtImportRef"
     :show="showTxtImportDialog"
     @update:show="emit('update:showTxtImportDialog', $event)"
     @imported="emit('txt-imported', $event)"
   />
 
   <CbzImportDialog
+    ref="cbzImportRef"
     :show="showCbzImportDialog"
     @update:show="emit('update:showCbzImportDialog', $event)"
     @imported="emit('cbz-imported', $event)"

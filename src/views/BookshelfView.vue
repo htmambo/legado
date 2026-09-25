@@ -39,6 +39,11 @@ const readerStore = useBookshelfReaderStore();
 const frontendPluginsStore = useFrontendPluginsStore();
 const privacyModeStore = usePrivacyModeStore();
 
+const dialogsRef = ref<{
+  txtImport: { ack: () => void; fail: (msg: string) => void };
+  cbzImport: { ack: () => void; fail: (msg: string) => void };
+} | null>(null);
+
 const { books, loading } = storeToRefs(bookshelfStore);
 const {
   searchKw,
@@ -231,6 +236,23 @@ const { activeView } = storeToRefs(navigationStore);
 const readerLauncher = useBookshelfReaderLauncher(message);
 const bookshelfActions = useBookshelfActions(message);
 const tocAutoUpdate = useTocAutoUpdate();
+
+function onTxtImported(payload: {
+  title: string;
+  author: string;
+  chapters: Array<{ title: string; content: string }>;
+  preface: string;
+}) {
+  return bookshelfActions.handleTxtImported(payload, dialogsRef.value?.txtImport);
+}
+
+function onCbzImported(payload: {
+  title: string;
+  pages: string[];
+  coverUrl: string;
+}) {
+  return bookshelfActions.handleCbzImported(payload, dialogsRef.value?.cbzImport);
+}
 
 async function handleGlobalSearchNavigate(result: SearchResult) {
   showGlobalSearch.value = false;
@@ -622,6 +644,7 @@ onMounted(async () => {
     />
 
     <BookshelfDialogs
+      ref="dialogsRef"
       v-model:show-source-switch-dialog="showSourceSwitchDialog"
       v-model:show-cover-generator-dialog="showCoverGeneratorDialog"
       v-model:show-export-dialog="showExportDialog"
@@ -638,8 +661,8 @@ onMounted(async () => {
       @whole-book-switched="bookshelfActions.handleWholeBookSwitched"
       @cover-applied="readerLauncher.syncOpenReaderBookInfo"
       @book-detail-saved="readerLauncher.syncOpenReaderBookInfo"
-      @txt-imported="bookshelfActions.handleTxtImported"
-      @cbz-imported="bookshelfActions.handleCbzImported"
+      @txt-imported="onTxtImported"
+      @cbz-imported="onCbzImported"
     />
   </div>
 </template>

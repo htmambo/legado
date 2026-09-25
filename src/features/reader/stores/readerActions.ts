@@ -40,6 +40,10 @@ export interface ReaderActionBindings {
   handleWholeBookSourceSwitched: (payload: WholeBookSwitchedPayload) => Asyncish;
   onVideoProgress: (time: number, duration: number) => Asyncish;
   onVideoEnded: () => Asyncish;
+  /** 按"页"前进：paged 翻页，scroll 滚动一页，comic / video no-op */
+  volumePageNext: () => Asyncish;
+  /** 按"页"后退 */
+  volumePagePrev: () => Asyncish;
 }
 
 function noop(): void {}
@@ -189,6 +193,14 @@ export const useReaderActionsStore = defineStore("readerActions", () => {
     return call(bindings.value?.onVideoEnded);
   }
 
+  function volumePageNext() {
+    return call(bindings.value?.volumePageNext);
+  }
+
+  function volumePagePrev() {
+    return call(bindings.value?.volumePagePrev);
+  }
+
   return {
     bind,
     clear,
@@ -223,6 +235,8 @@ export const useReaderActionsStore = defineStore("readerActions", () => {
     handleWholeBookSourceSwitched,
     onVideoProgress,
     onVideoEnded,
+    volumePageNext,
+    volumePagePrev,
     noop,
   };
 });
