@@ -108,7 +108,8 @@ const ICON_COMPONENTS: Record<string, Component> = {
 }
 
 .nav-rail:hover {
-  width: 256px;
+  z-index: 999999;
+  width: 150px;
 }
 
 .nav-rail__header {
@@ -131,6 +132,7 @@ const ICON_COMPONENTS: Record<string, Component> = {
   font-weight: 700;
   opacity: 0;
   transition: opacity 0.3s ease;
+  flex-shrink: 0;
 }
 
 .nav-rail:hover .nav-rail__app-name {
@@ -157,7 +159,7 @@ const ICON_COMPONENTS: Record<string, Component> = {
   display: flex;
   align-items: center;
   gap: 12px;
-  width: 256px;
+  width: 200px;
   height: 56px;
   padding: 0 16px;
   border: none;
@@ -226,6 +228,10 @@ const ICON_COMPONENTS: Record<string, Component> = {
   font-weight: 500;
   opacity: 0;
   transition: opacity 0.3s ease;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .nav-rail:hover .nav-rail__label {
@@ -248,7 +254,7 @@ const ICON_COMPONENTS: Record<string, Component> = {
   opacity: 1;
 }
 
-@media (max-width: 840px) {
+@media (max-width: 750px) {
   .nav-rail {
     display: none;
   }

@@ -97,7 +97,8 @@ const backStackStore = useBackStackStore();
 const updateFeedStore = useUpdateFeedStore();
 const { unreadCount } = storeToRefs(updateFeedStore);
 useInputMode();
-const { breakpoint: responsiveBreakpoint, densityMode: density } = useResponsiveControl();
+const { breakpoint: responsiveBreakpoint, width: responsiveWidth, densityMode: density } =
+  useResponsiveControl();
 const { effectiveEnabled: blueLightEnabled, cssIntensity: blueLightIntensity } =
   useBlueLightFilter();
 
@@ -416,10 +417,9 @@ const vueVersion = computed(() => packageJson.version || "0.0.0");
 // Tauri 壳版本：仅在 Tauri 环境下传给 TaskBar；鸿蒙版本暂不对接
 const tauriVersion = computed(() => (isTauri ? tauriConfig.version || "" : ""));
 const { logZoneEnabled: showLogZone } = useLogZonePref();
-const isWideLayout = computed(
-  () =>
-    responsiveBreakpoint.value === "expanded" || responsiveBreakpoint.value === "wide",
-);
+// navrail/bottom-nav 切换边界单独控制为 750px（区别于 breakpoint 里的 expanded 840px），
+// 避免改 getBreakpoint 边界时连带影响 columns / 对话框尺寸等其他响应式消费者。
+const isWideLayout = computed(() => responsiveWidth.value > 750);
 const latestLogMessage = computed(() => shellStatusStore.latestLog?.message ?? "暂无日志");
 </script>
 
