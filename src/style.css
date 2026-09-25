@@ -567,6 +567,35 @@ button {
 }
 
 /* ============================================================
+   Naive UI 弹窗通用滚动布局（preset="card"）
+   ============================================================
+
+   所有 n-modal preset="card" 的弹窗，n-card 默认渲染为
+   header + content + footer（action）的纵向布局。若不在
+   .n-card-content 上接通 flex:1 + min-height:0，内部内容超出
+   弹窗高度时会被裁掉或溢出（footer 也会跑到弹窗外）。
+
+   全局统一接通 flex 链路，让所有 preset="card" 弹窗自动
+   具备「内容超出滚动 + footer 固定底部」的行为，弹窗作者
+   不再需要每个弹窗重复写 :global(.n-card) / :global(.n-card-content)
+   的 flex 修复。
+   */
+
+.n-modal .n-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.n-modal .n-card-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ============================================================
    移动端适配
    ============================================================ */
 @media (pointer: coarse), (max-width: 640px) {

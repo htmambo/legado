@@ -542,16 +542,10 @@ watch(
   max-height: min(90dvh, 840px);
 }
 
-:global(.book-detail-dialog .n-card) {
-  display: flex;
-  flex-direction: column;
-}
-
+/* n-card / n-card-content 的 flex 链接已在 src/style.css 全局接通。
+   这里保留 padding:0 + overflow:hidden 是为了让滚动发生在
+   内部的 .bd-form/.bd-view（避免双重滚动条）。*/
 :global(.book-detail-dialog .n-card-content) {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
   padding: 0;
   overflow: hidden;
 }

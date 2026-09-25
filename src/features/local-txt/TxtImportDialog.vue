@@ -422,14 +422,11 @@ defineExpose({
 .txt-import-dialog {
   width: min(540px, 92vw);
   max-height: 88vh;
-  display: flex;
-  flex-direction: column;
 }
 
-.txt-import-dialog :deep(.n-card__content) {
-  overflow-y: auto;
-  flex: 1;
-}
+/* n-card / n-card-content 的 flex 链接已在 src/style.css 全局接通，
+   n-card-content 自动 flex:1 + overflow:auto，弹窗内容超出时
+   会自动出现滚动条。这里不再需要重复。*/
 
 .txt-import-dialog__close {
   background: none;
