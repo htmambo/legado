@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
 use tauri::State;
 
 use crate::booksource::model::BookSourceMeta;
@@ -78,6 +77,54 @@ pub fn booksource_remove_dir(
 pub fn booksource_list(state: State<'_, AppState>) -> CommandResult<Vec<BookSourceMeta>> {
     let dirs = booksource_get_dirs(state.clone())?;
     scan_dirs(&dirs)
+}
+
+/// 流式版本：扫描结果分批通过 `booksource:batch` 事件推给前端。
+/// payload: { requestId, items, done, total?, error? }
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_list_streaming(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    request_id: String,
+) -> CommandResult<()> {
+    use tauri::Emitter;
+
+    const BATCH_SIZE: usize = 50;
+
+    let emit = |payload: serde_json::Value| -> CommandResult<()> {
+        app.emit("booksource:batch", payload)
+            .map_err(|e| CommandError::other(e.to_string()))
+    };
+
+    let result = booksource_get_dirs(state).and_then(|dirs| scan_dirs(&dirs));
+    match result {
+        Ok(items) => {
+            let total = items.len();
+            for chunk in items.chunks(BATCH_SIZE) {
+                emit(serde_json::json!({
+                    "requestId": request_id,
+                    "items": chunk,
+                    "done": false,
+                    "total": total,
+                }))?;
+            }
+            emit(serde_json::json!({
+                "requestId": request_id,
+                "items": Vec::<BookSourceMeta>::new(),
+                "done": true,
+                "total": total,
+            }))?;
+        }
+        Err(e) => {
+            emit(serde_json::json!({
+                "requestId": request_id,
+                "items": Vec::<BookSourceMeta>::new(),
+                "done": true,
+                "error": e.to_string(),
+            }))?;
+        }
+    }
+    Ok(())
 }
 
 // ── 内部工具 ───────────────────────────────────────────────────────────────
@@ -169,4 +216,154 @@ fn scan_dirs(dirs: &[String]) -> CommandResult<Vec<BookSourceMeta>> {
     // 按文件名排序，前端展示稳定
     out.sort_by(|a, b| a.file_name.cmp(&b.file_name));
     Ok(out)
+}
+
+// ── 单文件 CRUD（无 JS 引擎，纯文件 IO） ─────────────────────────────────────
+
+fn safe_file_name(input: &str) -> CommandResult<String> {
+    if input.is_empty() {
+        return Err(CommandError::invalid("fileName 不能为空"));
+    }
+    if input.contains('/') || input.contains('\\') || input.contains("..") {
+        return Err(CommandError::invalid(format!("非法 fileName: {}", input)));
+    }
+    Ok(input.to_string())
+}
+
+fn resolve_booksource_path(data_dir: &Path, file_name: &str, source_dir: Option<&str>) -> CommandResult<PathBuf> {
+    let safe = safe_file_name(file_name)?;
+    let dir = if let Some(sd) = source_dir {
+        let p = Path::new(sd);
+        if !p.is_absolute() {
+            return Err(CommandError::invalid(format!("sourceDir 必须是绝对路径: {}", sd)));
+        }
+        PathBuf::from(sd)
+    } else {
+        primary_booksource_dir(data_dir)
+    };
+    Ok(dir.join(safe))
+}
+
+/// 读取书源 .js 文件内容
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_read(
+    state: State<'_, AppState>,
+    file_name: String,
+    source_dir: Option<String>,
+) -> CommandResult<String> {
+    let path = resolve_booksource_path(&state.data_dir, &file_name, source_dir.as_deref())?;
+    if !path.exists() {
+        return Err(CommandError::not_found(format!("书源文件不存在: {}", file_name)));
+    }
+    Ok(fs::read_to_string(&path)?)
+}
+
+/// 写入书源 .js 文件（覆盖）
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_save(
+    state: State<'_, AppState>,
+    file_name: String,
+    content: String,
+    source_dir: Option<String>,
+) -> CommandResult<()> {
+    let path = resolve_booksource_path(&state.data_dir, &file_name, source_dir.as_deref())?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp = path.with_extension("js.tmp");
+    fs::write(&tmp, content)?;
+    fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
+/// 删除书源 .js 文件
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_delete(
+    state: State<'_, AppState>,
+    file_name: String,
+    source_dir: Option<String>,
+) -> CommandResult<()> {
+    let path = resolve_booksource_path(&state.data_dir, &file_name, source_dir.as_deref())?;
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    Ok(())
+}
+
+/// 启用 / 禁用书源（用同名 marker 文件标记）
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_toggle(
+    state: State<'_, AppState>,
+    file_name: String,
+    enabled: bool,
+    source_dir: Option<String>,
+) -> CommandResult<()> {
+    let dir = if let Some(ref sd) = source_dir {
+        PathBuf::from(sd)
+    } else {
+        primary_booksource_dir(&state.data_dir)
+    };
+    let safe = safe_file_name(&file_name)?;
+    fs::create_dir_all(&dir)?;
+    let disabled = dir.join(format!("{}.disabled", safe));
+    let enabled_marker = dir.join(format!("{}.enabled", safe));
+    if disabled.exists() {
+        fs::remove_file(&disabled)?;
+    }
+    if enabled_marker.exists() {
+        fs::remove_file(&enabled_marker)?;
+    }
+    if enabled {
+        fs::write(&enabled_marker, b"")?;
+    } else {
+        fs::write(&disabled, b"")?;
+    }
+    Ok(())
+}
+
+/// 返回书源文件绝对路径（不读内容，用于外部编辑器打开）
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_resolve_path(
+    state: State<'_, AppState>,
+    file_name: String,
+    source_dir: Option<String>,
+) -> CommandResult<String> {
+    let path = resolve_booksource_path(&state.data_dir, &file_name, source_dir.as_deref())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+// ── 草稿（AI 辅助生成书源时的中间产物） ────────────────────────────────────
+
+fn draft_path(data_dir: &Path, file_name: &str) -> CommandResult<PathBuf> {
+    let safe = safe_file_name(file_name)?;
+    let dir = data_dir.join("booksource_drafts");
+    fs::create_dir_all(&dir)?;
+    Ok(dir.join(safe))
+}
+
+/// 保存 AI 草稿
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_save_draft(
+    state: State<'_, AppState>,
+    file_name: String,
+    content: String,
+) -> CommandResult<()> {
+    let path = draft_path(&state.data_dir, &file_name)?;
+    let tmp = path.with_extension("js.tmp");
+    fs::write(&tmp, content)?;
+    fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
+/// 删除 AI 草稿
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_delete_draft(
+    state: State<'_, AppState>,
+    file_name: String,
+) -> CommandResult<()> {
+    let path = draft_path(&state.data_dir, &file_name)?;
+    if path.exists() {
+        fs::remove_file(&path)?;
+    }
+    Ok(())
 }
