@@ -140,7 +140,7 @@ pub fn run() {
             stubs::repository_install,
             stubs::repository_preview_source,
             stubs::repository_check_source_sync,
-            stubs::booksource_eval,
+            booksource::engine::booksource_eval,
             booksource::engine::booksource_search,
             booksource::engine::booksource_book_info,
             booksource::engine::booksource_chapter_list,

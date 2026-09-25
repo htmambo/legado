@@ -65,16 +65,6 @@ pub fn repository_check_source_sync(
 // ── 书源脚本执行（依赖 JS 引擎） ──────────────────────────────────────────
 
 #[tauri::command(rename_all = "camelCase")]
-pub fn booksource_eval(
-) -> CommandResult<String> {
-    Err(not_implemented(
-        "booksource_eval",
-        "需要 Boa / QuickJS 等 JS 引擎嵌入",
-    ))
-}
-
-
-#[tauri::command(rename_all = "camelCase")]
 pub fn booksource_call_fn(
 ) -> CommandResult<serde_json::Value> {
     Err(not_implemented("booksource_call_fn", "需要 JS 引擎"))
