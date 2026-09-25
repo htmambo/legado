@@ -72,15 +72,13 @@ export function useResponsiveControl() {
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const appWindow = getCurrentWindow();
-        // Tauri 2 的 innerSize() 返回物理像素，要除以 scaleFactor 得到 CSS 像素，
-        // 否则 bp/columns 会按物理像素算出来和 layout viewport 严重不匹配。
-        const scale = await appWindow.scaleFactor();
-        const cssFromPhysical = (px: number) => Math.round(px / scale);
-        const size = await appWindow.innerSize();
-        applyWidth(cssFromPhysical(size.width));
-        unlistenResize = await appWindow.onResized((event) => {
-          const w = event.payload.width;
-          applyWidth(cssFromPhysical(w));
+        // 初始值：用 webview 内 CSS 宽度（documentElement.clientWidth），不用 Tauri
+        // 报的物理像素——Tauri 2 onResized 的 payload 是 OS 窗口外尺寸（含 macOS 装饰），
+        // 跟 webview viewport 不是同一个东西，会差 90+ CSS px。
+        applyWidth(document.documentElement.clientWidth || window.innerWidth);
+        unlistenResize = await appWindow.onResized(() => {
+          // OS resize 完成后 webview 已同步，直接读 webview CSS 宽度
+          applyWidth(document.documentElement.clientWidth || window.innerWidth);
         });
       } catch (err) {
         // Tauri API 不可用（非 macOS 桌面 / Harmony / 调用失败）→ 回退到 ResizeObserver
