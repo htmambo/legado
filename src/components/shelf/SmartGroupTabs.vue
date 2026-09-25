@@ -51,7 +51,7 @@ function selectTab(groupId: SmartGroupType | null) {
 .smart-group-tabs {
   flex-shrink: 0;
   border-bottom: 1px solid var(--color-border);
-  background: var(--gray-0);
+  background: var(--color-surface);
 }
 
 .smart-group-tabs__scroll {
@@ -111,7 +111,7 @@ function selectTab(groupId: SmartGroupType | null) {
   font-weight: var(--fw-semibold);
   padding: 1px 6px;
   border-radius: var(--radius-pill);
-  background: var(--gray-100);
+  background: var(--color-active);
   color: var(--color-text-muted);
   min-width: 18px;
   text-align: center;
@@ -119,8 +119,8 @@ function selectTab(groupId: SmartGroupType | null) {
 }
 
 .smart-group-tabs__tab--active .smart-group-tabs__count {
-  background: var(--brand-100);
-  color: var(--brand-500);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 @media (hover: hover) and (pointer: fine) {
