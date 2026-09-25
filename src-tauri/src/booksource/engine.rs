@@ -115,7 +115,10 @@ window.__bsModules = window.__bsModules || {{}};
   try {{
     const fileName = {file};
     if (!window.__bsModules[fileName]) {{
-      const __invoke = window.__TAURI_INTERNALS__.invoke;
+      const __invokeRaw = window.__TAURI_INTERNALS__.invoke;
+      const __invoke = (cmd, args) => __invokeRaw(cmd, args).catch(e => {{
+        throw new Error(e && e.message ? e.message : String(e));
+      }});
       const legado = {{
         http: {{
           get: (url, headers) => __invoke('booksource_http_proxy', {{ request: {{ url, method: 'GET', headers: headers || {{}} }} }}).then(r => r.body),
@@ -129,7 +132,7 @@ window.__bsModules = window.__bsModules || {{}};
     const mod = window.__bsModules[fileName];
     {tail}
   }} catch (e) {{
-    window.__probeResults[REQ] = {{ ok: false, error: String(e && e.stack || e) }};
+    window.__probeResults[REQ] = {{ ok: false, error: String(e && (e.stack || e.message) || e) }};
   }}
 }})();
 "started""#,

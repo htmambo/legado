@@ -567,6 +567,34 @@ async function probeWsServer(): Promise<boolean> {
  * - Harmony 环境：使用原生桥接
  * - 浏览器环境：自动连接 WS 服务器并通过 WS 调用
  */
+/**
+ * 把 Tauri 命令拒绝值规整成 Error。
+ * Rust 端 CommandError 序列化为 { code, message } 对象，
+ * 直接 String(e) 会显示成 "[object Object]"。
+ */
+function normalizeInvokeError(error: unknown): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  if (typeof error === "string") {
+    return new Error(error);
+  }
+  if (typeof error === "object" && error !== null) {
+    const message = Reflect.get(error, "message");
+    if (typeof message === "string" && message.length > 0) {
+      const code = Reflect.get(error, "code");
+      const err = new Error(typeof code === "string" ? `[${code}] ${message}` : message);
+      return err;
+    }
+    try {
+      return new Error(JSON.stringify(error));
+    } catch {
+      return new Error(String(error));
+    }
+  }
+  return new Error(String(error));
+}
+
 export async function transportInvoke<T>(
   command: string,
   args?: Record<string, unknown>,
@@ -578,7 +606,9 @@ export async function transportInvoke<T>(
     let timer: ReturnType<typeof setTimeout> | null = null;
     try {
       return await Promise.race([
-        invoke<T>(command, args),
+        invoke<T>(command, args).catch((e: unknown) => {
+          throw normalizeInvokeError(e);
+        }),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
             () => reject(new Error(`调用 ${command} 超时（${Math.round(timeoutMs / 1000)}s）`)),
