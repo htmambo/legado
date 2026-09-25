@@ -21,6 +21,10 @@ export function useBookshelfReaderLauncher(message: MessageApi) {
   const tocAutoUpdate = useTocAutoUpdate();
 
   async function openBook(book: ShelfBook) {
+    // 主动关闭右键菜单，避免与点击另一本书封面的事件竞态——
+    // n-dropdown 的 clickoutside 在阅读 modal 打开瞬间可能被 Teleport
+    // 截胡，导致退出阅读页后菜单仍残留显示。
+    uiStore.closeContextMenu();
     readerStore.setBookMeta(book);
 
     try {

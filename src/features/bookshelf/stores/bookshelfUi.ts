@@ -102,8 +102,32 @@ export const useBookshelfUiStore = defineStore("bookshelfUi", () => {
   async function openContextMenu(book: ShelfBook, event: MouseEvent) {
     contextBook.value = book;
     showDropdown.value = false;
-    dropdownX.value = event.clientX;
-    dropdownY.value = event.clientY;
+
+    // 视口边缘自适应：n-dropdown 用绝对坐标 + 固定 placement，
+    // 不会自动 flip；这里按预估最大尺寸提前反向 clamp。
+    const MENU_MAX_HEIGHT = 360;
+    const MENU_MAX_WIDTH = 280;
+    const SAFE_MARGIN = 8;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let x = event.clientX;
+    let y = event.clientY;
+
+    // 顶部/底部越界：把菜单拉回视口内
+    if (y + MENU_MAX_HEIGHT > viewportHeight - SAFE_MARGIN) {
+      y = Math.max(SAFE_MARGIN, viewportHeight - MENU_MAX_HEIGHT - SAFE_MARGIN);
+    } else if (y < SAFE_MARGIN) {
+      y = SAFE_MARGIN;
+    }
+
+    // 右侧越界
+    if (x + MENU_MAX_WIDTH > viewportWidth - SAFE_MARGIN) {
+      x = Math.max(SAFE_MARGIN, viewportWidth - MENU_MAX_WIDTH - SAFE_MARGIN);
+    }
+
+    dropdownX.value = x;
+    dropdownY.value = y;
     await nextTick();
     showDropdown.value = true;
   }
