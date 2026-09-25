@@ -18,10 +18,9 @@ pub fn primary_booksource_dir(data_dir: &Path) -> PathBuf {
 }
 
 /// 返回完整目录列表：主目录在前，去重
-#[tauri::command(rename_all = "camelCase")]
-pub fn booksource_get_dirs(state: State<'_, AppState>) -> CommandResult<Vec<String>> {
-    let primary = primary_booksource_dir(&state.data_dir).to_string_lossy().to_string();
-    let extras = read_extra_dirs(&state.data_dir)?;
+fn all_dirs(data_dir: &Path) -> CommandResult<Vec<String>> {
+    let primary = primary_booksource_dir(data_dir).to_string_lossy().to_string();
+    let extras = read_extra_dirs(data_dir)?;
     let mut all = Vec::with_capacity(1 + extras.len());
     all.push(primary);
     for e in extras {
@@ -30,6 +29,12 @@ pub fn booksource_get_dirs(state: State<'_, AppState>) -> CommandResult<Vec<Stri
         }
     }
     Ok(all)
+}
+
+/// 返回完整目录列表：主目录在前，去重
+#[tauri::command(rename_all = "camelCase")]
+pub fn booksource_get_dirs(state: State<'_, AppState>) -> CommandResult<Vec<String>> {
+    all_dirs(&state.data_dir)
 }
 
 /// 返回主书源目录绝对路径
@@ -81,6 +86,10 @@ pub fn booksource_list(state: State<'_, AppState>) -> CommandResult<Vec<BookSour
 
 /// 流式版本：扫描结果分批通过 `booksource:batch` 事件推给前端。
 /// payload: { requestId, items, done, total?, error? }
+///
+/// 必须立即返回、后台线程扫描再推送：前端的 `listen()` 注册是异步 IPC，
+/// 若在 invoke 内同步 emit，事件可能先于 JS 侧 listener 落位到达而被丢弃，
+/// 前端 Promise 永远等不到 done → 书源管理页一直转圈。
 #[tauri::command(rename_all = "camelCase")]
 pub fn booksource_list_streaming(
     app: tauri::AppHandle,
@@ -91,39 +100,42 @@ pub fn booksource_list_streaming(
 
     const BATCH_SIZE: usize = 50;
 
-    let emit = |payload: serde_json::Value| -> CommandResult<()> {
-        app.emit("booksource:batch", payload)
-            .map_err(|e| CommandError::other(e.to_string()))
-    };
+    let data_dir = state.data_dir.clone();
+    std::thread::spawn(move || {
+        let emit = |payload: serde_json::Value| {
+            if let Err(e) = app.emit("booksource:batch", payload) {
+                log::warn!("booksource:batch emit 失败: {}", e);
+            }
+        };
 
-    let result = booksource_get_dirs(state).and_then(|dirs| scan_dirs(&dirs));
-    match result {
-        Ok(items) => {
-            let total = items.len();
-            for chunk in items.chunks(BATCH_SIZE) {
+        match all_dirs(&data_dir).and_then(|dirs| scan_dirs(&dirs)) {
+            Ok(items) => {
+                let total = items.len();
+                for chunk in items.chunks(BATCH_SIZE) {
+                    emit(serde_json::json!({
+                        "requestId": request_id,
+                        "items": chunk,
+                        "done": false,
+                        "total": total,
+                    }));
+                }
                 emit(serde_json::json!({
                     "requestId": request_id,
-                    "items": chunk,
-                    "done": false,
+                    "items": Vec::<BookSourceMeta>::new(),
+                    "done": true,
                     "total": total,
-                }))?;
+                }));
             }
-            emit(serde_json::json!({
-                "requestId": request_id,
-                "items": Vec::<BookSourceMeta>::new(),
-                "done": true,
-                "total": total,
-            }))?;
+            Err(e) => {
+                emit(serde_json::json!({
+                    "requestId": request_id,
+                    "items": Vec::<BookSourceMeta>::new(),
+                    "done": true,
+                    "error": e.to_string(),
+                }));
+            }
         }
-        Err(e) => {
-            emit(serde_json::json!({
-                "requestId": request_id,
-                "items": Vec::<BookSourceMeta>::new(),
-                "done": true,
-                "error": e.to_string(),
-            }))?;
-        }
-    }
+    });
     Ok(())
 }
 
