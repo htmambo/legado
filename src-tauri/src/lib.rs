@@ -6,6 +6,7 @@ mod extensions;
 mod frontend_log;
 mod frontend_storage;
 mod platform;
+mod prefetch;
 mod state;
 
 use tauri::Manager;
@@ -76,6 +77,9 @@ pub fn run() {
             bookshelf::commands::bookshelf_export_book,
             bookshelf::commands::bookshelf_reveal_data_dir,
             bookshelf::commands::bookshelf_reveal_export_file,
+            prefetch::bookshelf_prefetch_chapters,
+            prefetch::booksource_cancel,
+            prefetch::bookshelf_pick_save_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
