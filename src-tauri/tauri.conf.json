@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "node scripts/with-clean-shutdown.mjs vite",
     "beforeBuildCommand": ""
   },
   "app": {
