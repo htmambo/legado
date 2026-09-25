@@ -60,6 +60,10 @@ const longPressStartY = ref(0);
 
 function onCardPointerDown(e: PointerEvent, book: ShelfBook) {
   if (props.editMode) return;
+  // 仅左键启动长按多选计时器。右键会触发 contextmenu，
+  // 若同时启动计时器，pointerup 时会先 emit('select') 打开阅读页，
+  // 导致右键菜单被阅读页遮挡。
+  if (e.button !== 0) return;
   longPressBook.value = book;
   longPressStartX.value = e.clientX;
   longPressStartY.value = e.clientY;
@@ -202,7 +206,7 @@ function onCardContextMenu(book: ShelfBook, e: MouseEvent) {
             @pointermove.prevent="onCardPointerMove($event)"
             @pointerup.prevent="onCardPointerUp($event, book)"
             @pointercancel="onCardPointerCancel"
-            @click="onCardClick(book)"
+            @click.left="onCardClick(book)"
             @contextmenu.prevent="onCardContextMenu(book, $event)"
           >
             <ShelfBookCard

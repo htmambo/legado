@@ -67,7 +67,7 @@ function unreadClass(book: ShelfBook): Record<string, boolean> {
       'shelf-card--edit': editMode,
       'shelf-card--selected': selected,
     }"
-    @click="$emit('select', book)"
+    @click.left="$emit('select', book)"
     @keydown.enter.prevent="$emit('select', book)"
     @keydown.space.prevent="$emit('select', book)"
     @contextmenu.prevent="editMode ? undefined : $emit('contextmenu', book, $event)"
