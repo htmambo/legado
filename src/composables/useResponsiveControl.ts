@@ -1,4 +1,5 @@
 import { computed, onMounted, onUnmounted, ref } from "vue";
+import { isTauri } from "./useEnv";
 
 export type ResponsiveBreakpoint = "compact" | "medium" | "expanded" | "wide";
 export type DensityScale = 0.875 | 1 | 1.125;
@@ -16,6 +17,7 @@ export interface DialogSizeConfig {
   maxWidth: string;
 }
 
+// 共享 width ref：多个组件实例读同一来源，避免重复监听；监听器本身仍按实例生命周期管理。
 const width = ref(typeof window === "undefined" ? 0 : window.innerWidth);
 
 function getBreakpoint(value: number): ResponsiveBreakpoint {
@@ -32,15 +34,12 @@ const DIALOG_SIZE_MAP: Record<ResponsiveBreakpoint, DialogSizeConfig> = {
   wide: { width: "720px", height: "75vh", maxWidth: "760px" },
 };
 
-let _mql600: MediaQueryList | null = null;
-let _mql840: MediaQueryList | null = null;
-let _mql1200: MediaQueryList | null = null;
-let _mqlLandscape: MediaQueryList | null = null;
-
 export function useResponsiveControl() {
-  function update() {
-    width.value = window.innerWidth;
-  }
+  // Tauri 模式：直接订阅 OS 窗口事件，绕开 webview layout viewport 与 OS 窗口
+  // 在 macOS unmaximize/restore 时不同步的已知问题；web 模式 fallback 到 ResizeObserver。
+  let unlistenResize: (() => void) | null = null;
+  let resizeObserver: ResizeObserver | null = null;
+  let landscapeMql: MediaQueryList | null = null;
 
   const isLandscape = ref(
     typeof window !== "undefined" && window.matchMedia
@@ -48,31 +47,60 @@ export function useResponsiveControl() {
       : false,
   );
 
-  function _onLandscapeChange(e: MediaQueryListEvent) {
+  function onLandscapeChange(e: MediaQueryListEvent) {
     isLandscape.value = e.matches;
   }
 
-  onMounted(() => {
-    update();
-    if (typeof window !== "undefined" && window.matchMedia) {
-      _mql600 = window.matchMedia("(min-width: 600px)");
-      _mql840 = window.matchMedia("(min-width: 840px)");
-      _mql1200 = window.matchMedia("(min-width: 1200px)");
-      _mqlLandscape = window.matchMedia("(orientation: landscape)");
-      _mql600.addEventListener("change", update);
-      _mql840.addEventListener("change", update);
-      _mql1200.addEventListener("change", update);
-      _mqlLandscape.addEventListener("change", _onLandscapeChange);
+  function applyWidth(w: number) {
+    if (w > 0) width.value = w;
+  }
+
+  function setupResizeObserver() {
+    if (typeof document === "undefined" || typeof ResizeObserver === "undefined") return;
+    resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      const w = entry ? entry.contentRect.width : window.innerWidth;
+      applyWidth(w);
+    });
+    resizeObserver.observe(document.documentElement);
+  }
+
+  onMounted(async () => {
+    applyWidth(window.innerWidth);
+
+    if (isTauri) {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const appWindow = getCurrentWindow();
+        // Tauri 2 的 innerSize() 返回物理像素，要除以 scaleFactor 得到 CSS 像素，
+        // 否则 bp/columns 会按物理像素算出来和 layout viewport 严重不匹配。
+        const scale = await appWindow.scaleFactor();
+        const cssFromPhysical = (px: number) => Math.round(px / scale);
+        const size = await appWindow.innerSize();
+        applyWidth(cssFromPhysical(size.width));
+        unlistenResize = await appWindow.onResized((event) => {
+          const w = event.payload.width;
+          applyWidth(cssFromPhysical(w));
+        });
+      } catch (err) {
+        // Tauri API 不可用（非 macOS 桌面 / Harmony / 调用失败）→ 回退到 ResizeObserver
+        console.warn("[RC] tauri innerSize failed, fallback to ResizeObserver", err);
+        setupResizeObserver();
+      }
+    } else {
+      setupResizeObserver();
     }
-    window.addEventListener("resize", update, { passive: true });
+
+    if (typeof window !== "undefined" && window.matchMedia) {
+      landscapeMql = window.matchMedia("(orientation: landscape)");
+      landscapeMql.addEventListener("change", onLandscapeChange);
+    }
   });
 
   onUnmounted(() => {
-    _mql600?.removeEventListener("change", update);
-    _mql840?.removeEventListener("change", update);
-    _mql1200?.removeEventListener("change", update);
-    _mqlLandscape?.removeEventListener("change", _onLandscapeChange);
-    window.removeEventListener("resize", update);
+    unlistenResize?.();
+    resizeObserver?.disconnect();
+    landscapeMql?.removeEventListener("change", onLandscapeChange);
   });
 
   const breakpoint = computed<ResponsiveBreakpoint>(() => getBreakpoint(width.value));

@@ -416,8 +416,10 @@ const vueVersion = computed(() => packageJson.version || "0.0.0");
 // Tauri 壳版本：仅在 Tauri 环境下传给 TaskBar；鸿蒙版本暂不对接
 const tauriVersion = computed(() => (isTauri ? tauriConfig.version || "" : ""));
 const { logZoneEnabled: showLogZone } = useLogZonePref();
-const { breakpoint: bp } = useResponsiveControl();
-const isWideLayout = computed(() => bp.value === "expanded" || bp.value === "wide");
+const isWideLayout = computed(
+  () =>
+    responsiveBreakpoint.value === "expanded" || responsiveBreakpoint.value === "wide",
+);
 const latestLogMessage = computed(() => shellStatusStore.latestLog?.message ?? "暂无日志");
 </script>
 
