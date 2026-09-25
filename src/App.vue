@@ -6,7 +6,6 @@ import type { NavItem } from "@/types";
 import packageJson from "../package.json";
 import tauriConfig from "../src-tauri/tauri.conf.json";
 import GlobalFeedbackMirror from "./components/GlobalFeedbackMirror.vue";
-import AppLockScreen from "./components/layout/AppLockScreen.vue";
 import BottomNav from "./components/layout/BottomNav.vue";
 import LogWindowPanel from "./components/layout/LogWindowPanel.vue";
 import MainContent from "./components/layout/MainContent.vue";
@@ -24,7 +23,6 @@ import { useInputMode } from "./composables/useInputMode";
 import { useLogZonePref } from "./composables/useLogZonePref";
 import { useResponsiveControl } from "./composables/useResponsiveControl";
 import { installSyncClientStateListener, useSync } from "./composables/useSync";
-import { useAppLock } from "./composables/useAppLock";
 import { useBlueLightFilter } from "./composables/useBlueLightFilter";
 import { useVConsole } from "./composables/useVConsole";
 import {
@@ -99,7 +97,6 @@ const backStackStore = useBackStackStore();
 const updateFeedStore = useUpdateFeedStore();
 const { unreadCount } = storeToRefs(updateFeedStore);
 useInputMode();
-const appLock = useAppLock();
 const { breakpoint: responsiveBreakpoint, densityMode: density } = useResponsiveControl();
 const { effectiveEnabled: blueLightEnabled, cssIntensity: blueLightIntensity } =
   useBlueLightFilter();
@@ -300,10 +297,8 @@ onMounted(() => {
   // 从 Rust 侧获取准确平台信息（修复 Android 被识别为 Linux 的问题）
   void initPlatformFromRust();
   // 监听页面可见性变化，通知 Rust 端 resume/background 生命周期事件
-  // 同时记录切后台时间，用于应用锁自动锁定
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", _onVisibilityChange);
-    appLock.recordVisibilityChange();
   }
 });
 onUnmounted(() => {
@@ -525,8 +520,6 @@ const latestLogMessage = computed(() => shellStatusStore.latestLog?.message ?? "
             class="blue-light-filter"
             :style="{ '--filter-intensity': blueLightIntensity }"
           />
-          <!-- 应用锁覆盖层 -->
-          <AppLockScreen v-if="appLock.isLocked" />
         </n-dialog-provider>
       </n-notification-provider>
     </n-message-provider>

@@ -16,7 +16,6 @@ import SectionVideo from "@/components/settings/SectionVideo.vue";
 import SectionNotification from "@/components/settings/SectionNotification.vue";
 import WebDAVPanel from "@/components/settings/WebDAVPanel.vue";
 import ReadingStatsPanel from "@/components/settings/ReadingStatsPanel.vue";
-import AppLockSetup from "@/components/settings/AppLockSetup.vue";
 import { isHarmonyNative } from "@/composables/useEnv";
 import { useResponsiveControl } from "@/composables/useResponsiveControl";
 import { useNavigationStore, useBackStackStore } from "@/stores";
