@@ -209,25 +209,169 @@ fn scan_dirs(dirs: &[String]) -> CommandResult<Vec<BookSourceMeta>> {
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as i64)
                 .unwrap_or(0);
-            out.push(BookSourceMeta {
-                source_key: None,
-                uuid: None,
-                file_name: file_name.clone(),
-                name: file_name.trim_end_matches(".js").to_string(),
-                author: None,
-                logo: None,
-                description: None,
-                enabled: true,
-                file_size: meta.len(),
+            let content = fs::read_to_string(&path).unwrap_or_default();
+            // 启停 marker 优先于 @enabled 头部声明
+            let disabled_marker = p.join(format!("{}.disabled", file_name));
+            let enabled_marker = p.join(format!("{}.enabled", file_name));
+            let enabled_override = if disabled_marker.exists() {
+                Some(false)
+            } else if enabled_marker.exists() {
+                Some(true)
+            } else {
+                None
+            };
+            out.push(parse_header_meta(
+                &content,
+                file_name,
+                p.to_string_lossy().to_string(),
+                meta.len(),
                 modified_at,
-                source_dir: p.to_string_lossy().to_string(),
-                source_type: "novel".to_string(),
-            });
+                enabled_override,
+            ));
         }
     }
     // 按文件名排序，前端展示稳定
     out.sort_by(|a, b| a.file_name.cmp(&b.file_name));
     Ok(out)
+}
+
+/// 解析书源 JS 的头部注释（`// @key value`），生成完整元数据。
+///
+/// 前端 SourceCard 等组件会直接解引用 tags / urls 等数组字段，
+/// 这里必须给全默认值，否则列表渲染整体崩掉（曾导致"已安装书源空白"）。
+/// 标量字段首次出现生效；@url / @description / @require 可多次出现。
+fn parse_header_meta(
+    content: &str,
+    file_name: String,
+    source_dir: String,
+    file_size: u64,
+    modified_at: i64,
+    enabled_override: Option<bool>,
+) -> BookSourceMeta {
+    let mut name: Option<String> = None;
+    let mut author: Option<String> = None;
+    let mut logo: Option<String> = None;
+    let mut descriptions: Vec<String> = Vec::new();
+    let mut urls: Vec<String> = Vec::new();
+    let mut tags: Vec<String> = Vec::new();
+    let mut version: Option<String> = None;
+    let mut update_url: Option<String> = None;
+    let mut uuid: Option<String> = None;
+    let mut source_type: Option<String> = None;
+    let mut header_enabled: Option<bool> = None;
+    let mut min_delay_ms: u64 = 0;
+    let mut require_urls: Vec<String> = Vec::new();
+
+    for line in content.lines() {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("//") {
+            continue;
+        }
+        let body = trimmed.trim_start_matches('/').trim_start();
+        let Some(rest) = body.strip_prefix('@') else {
+            continue;
+        };
+        let mut parts = rest.splitn(2, char::is_whitespace);
+        let key = parts.next().unwrap_or("");
+        let value = parts.next().unwrap_or("").trim().to_string();
+        if key.is_empty() {
+            continue;
+        }
+        match key {
+            "name" => {
+                if name.is_none() && !value.is_empty() {
+                    name = Some(value);
+                }
+            }
+            "author" => {
+                if author.is_none() && !value.is_empty() {
+                    author = Some(value);
+                }
+            }
+            "logo" => {
+                if logo.is_none() && !value.is_empty() {
+                    logo = Some(value);
+                }
+            }
+            "description" => descriptions.push(value),
+            "url" => {
+                if !value.is_empty() {
+                    urls.push(value);
+                }
+            }
+            "tags" => {
+                for t in value.split([',', '，']) {
+                    let t = t.trim();
+                    if !t.is_empty() && !tags.iter().any(|x| x == t) {
+                        tags.push(t.to_string());
+                    }
+                }
+            }
+            "version" => {
+                if version.is_none() && !value.is_empty() {
+                    version = Some(value);
+                }
+            }
+            "updateUrl" => {
+                if update_url.is_none() && !value.is_empty() {
+                    update_url = Some(value);
+                }
+            }
+            "uuid" => {
+                if uuid.is_none() && !value.is_empty() {
+                    uuid = Some(value);
+                }
+            }
+            "type" => {
+                if source_type.is_none() && !value.is_empty() {
+                    source_type = Some(value);
+                }
+            }
+            "enabled" => {
+                if header_enabled.is_none() {
+                    header_enabled = Some(!matches!(value.as_str(), "false" | "0" | "no"));
+                }
+            }
+            "minDelayMs" | "minDelay" => {
+                if let Ok(n) = value.parse::<u64>() {
+                    min_delay_ms = n;
+                }
+            }
+            "require" => {
+                if !value.is_empty() {
+                    require_urls.push(value);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let uuid = uuid.unwrap_or_else(|| file_name.clone());
+    BookSourceMeta {
+        source_key: uuid.clone(),
+        uuid,
+        file_name: file_name.clone(),
+        name: name.unwrap_or_else(|| file_name.trim_end_matches(".js").to_string()),
+        url: urls.first().cloned().unwrap_or_default(),
+        urls,
+        author,
+        logo,
+        description: if descriptions.is_empty() {
+            None
+        } else {
+            Some(descriptions.join("\n"))
+        },
+        enabled: enabled_override.or(header_enabled).unwrap_or(true),
+        file_size,
+        modified_at,
+        source_dir,
+        source_type: source_type.unwrap_or_else(|| "novel".to_string()),
+        version: version.unwrap_or_default(),
+        update_url,
+        tags,
+        min_delay_ms,
+        require_urls,
+    }
 }
 
 // ── 单文件 CRUD（无 JS 引擎，纯文件 IO） ─────────────────────────────────────
