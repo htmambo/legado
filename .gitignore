@@ -44,3 +44,4 @@ tools/
 # Claude 相关文件
 .claude/
 .vscode/sftp.json
+.ace-tool/
