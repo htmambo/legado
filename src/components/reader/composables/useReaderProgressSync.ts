@@ -146,6 +146,7 @@ export function useReaderProgressSync(options: UseReaderProgressSyncOptions) {
       return;
     }
 
+    const prevLastSaved = lastSavedChapterIndex;
     lastSavedChapterIndex = target.chapterIndex;
     try {
       await options.updateProgress(
@@ -156,8 +157,19 @@ export function useReaderProgressSync(options: UseReaderProgressSyncOptions) {
       );
       lastDetailedSaveAt = Date.now();
       reportReaderSession(true);
-    } catch {
+    } catch (err) {
       // 保存失败不阻断退出或翻章；下次自动保存/同步会继续尝试。
+      // 但必须回滚 lastSavedChapterIndex，否则后续同章节无效位置
+      // 的更新会被错误跳过；同时打印错误便于排查。
+      lastSavedChapterIndex = prevLastSaved;
+      console.error('[doSaveDetailedProgress] updateProgress failed', {
+        shelfId,
+        chapterIndex: target.chapterIndex,
+        chapterUrl: target.chapterUrl,
+        pageIndex: position.pageIndex,
+        scrollRatio: position.scrollRatio,
+        error: err,
+      });
     }
   }
 

@@ -299,34 +299,58 @@ export const useBookshelfStore = defineStore("bookshelf", () => {
     await invokeWithTimeout<void>(
       "bookshelf_update_progress",
       {
-        id,
-        chapterIndex,
-        chapterUrl,
-        pageIndex: opts?.pageIndex,
-        scrollRatio: opts?.scrollRatio,
-        playbackTime: opts?.playbackTime,
-        readerSettings: opts?.readerSettings,
+        // 后端命令签名是 (state, args: BookshelfUpdateProgressArgs)，
+        // Tauri 把单参数对象映射为 {args: {...}}，必须用 args 包裹。
+        args: {
+          id,
+          chapterIndex,
+          chapterUrl,
+          pageIndex: opts?.pageIndex,
+          scrollRatio: opts?.scrollRatio,
+          playbackTime: opts?.playbackTime,
+          readerSettings: opts?.readerSettings,
+        },
       },
       TIMEOUT,
     );
     // 同步更新内存缓存
-    const book = books.value.find((b) => b.id === id);
-    if (book) {
-      book.readChapterIndex = chapterIndex;
-      book.readChapterUrl = chapterUrl;
-      book.lastReadAt = Date.now();
-      if (opts?.pageIndex !== undefined) {
-        book.readPageIndex = opts.pageIndex;
-      }
-      if (opts?.scrollRatio !== undefined) {
-        book.readScrollRatio = opts.scrollRatio;
-      }
-      if (opts?.playbackTime !== undefined) {
-        book.readPlaybackTime = opts.playbackTime;
-      }
-      if (opts?.readerSettings !== undefined) {
-        book.readerSettings = opts.readerSettings;
-      }
+    let book = books.value.find((b) => b.id === id);
+    if (!book) {
+      // 容错：books.value 找不到（可能被 loadBooks 刷新过 / 隐私模式切换 /
+      // localAddedShelfId 还在但 books 已被重建），主动 reload 一次后重试，
+      // 保证阅读进度在 books.value 上一定可见。
+      console.warn('[updateProgress] book not found in cache, reloading', {
+        targetId: id,
+        cachedIds: books.value.map((b) => b.id),
+        booksCount: books.value.length,
+      });
+      await loadBooks();
+      book = books.value.find((b) => b.id === id);
+    }
+    if (!book) {
+      // reload 后仍找不到，说明 id 与 books.value 不一致或后端无此书
+      console.error('[updateProgress] book still not found after reload', {
+        targetId: id,
+        cachedIdsAfterReload: books.value.map((b) => b.id),
+      });
+      return;
+    }
+    book.readChapterIndex = chapterIndex;
+    book.readChapterUrl = chapterUrl;
+    book.lastReadAt = Date.now();
+    // 守卫 >= 0：阅读器初始 pageIndex / scrollRatio 为 -1（未就绪），
+    // 此时不应覆盖用户在编辑详情保存的有效值。
+    if (opts?.pageIndex !== undefined && opts.pageIndex >= 0) {
+      book.readPageIndex = opts.pageIndex;
+    }
+    if (opts?.scrollRatio !== undefined && opts.scrollRatio >= 0 && opts.scrollRatio <= 1) {
+      book.readScrollRatio = opts.scrollRatio;
+    }
+    if (opts?.playbackTime !== undefined) {
+      book.readPlaybackTime = opts.playbackTime;
+    }
+    if (opts?.readerSettings !== undefined) {
+      book.readerSettings = opts.readerSettings;
     }
   }
 

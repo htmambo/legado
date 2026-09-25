@@ -108,7 +108,10 @@ export function useChapterReaderModalController(
     ...args: Parameters<typeof updateBookshelfProgress>
   ): ReturnType<typeof updateBookshelfProgress> {
     const nextWrite = progressWriteQueue
-      .catch(() => {})
+      .catch((err) => {
+        // 前一次写入失败：记录但不阻塞后续写入
+        console.warn('[progressWriteQueue] previous write failed', err);
+      })
       .then(() => updateBookshelfProgress(...args));
     progressWriteQueue = nextWrite;
     return nextWrite;
@@ -429,8 +432,10 @@ export function useChapterReaderModalController(
   function setPagedPage(page: number) {
     const total = activePagedPages.value.length;
     if (total <= 0) {
-      pagedPageIndex.value = 0;
-      currentPageIndex.value = -1;
+      // 分页未准备好：保留传入值（用户可能刚从编辑详情设置了具体页码），
+      // 等待 openPagedChapter 在分页就绪后通过 clamp 校正。
+      pagedPageIndex.value = page >= 0 ? page : 0;
+      currentPageIndex.value = page >= 0 ? page : -1;
       currentScrollRatio.value = -1;
       return;
     }

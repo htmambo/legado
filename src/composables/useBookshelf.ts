@@ -227,15 +227,24 @@ export function useBookshelf() {
     );
     // 同步更新内存缓存：确保关闭阅读器再次打开时 books.value 的数据是最新的，
     // 避免 openBook 使用旧 readChapterIndex 导致打开错误章节 / 无法恢复阅读位置。
-    const book = books.value.find((b) => b.id === id);
+    let book = books.value.find((b) => b.id === id);
+    if (!book) {
+      // 容错：books.value 找不到（可能被 loadBooks 刷新过 / 隐私模式切换 /
+      // localAddedShelfId 还在但 books 已被重建），主动 reload 一次后重试，
+      // 保证阅读进度在 books.value 上一定可见。
+      await loadBooks();
+      book = books.value.find((b) => b.id === id);
+    }
     if (book) {
       book.readChapterIndex = chapterIndex;
       book.readChapterUrl = chapterUrl;
       book.lastReadAt = Date.now();
-      if (opts?.pageIndex !== undefined) {
+      // 守卫 >= 0：阅读器初始 pageIndex / scrollRatio 为 -1（未就绪），
+      // 此时不应覆盖用户在编辑详情保存的有效值。
+      if (opts?.pageIndex !== undefined && opts.pageIndex >= 0) {
         book.readPageIndex = opts.pageIndex;
       }
-      if (opts?.scrollRatio !== undefined) {
+      if (opts?.scrollRatio !== undefined && opts.scrollRatio >= 0) {
         book.readScrollRatio = opts.scrollRatio;
       }
       if (opts?.playbackTime !== undefined) {
