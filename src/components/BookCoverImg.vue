@@ -98,6 +98,12 @@ watch(
       return;
     }
 
+    // data: URL（生成封面）：<img> 可直接显示，无需走后端缓存
+    if (rawUrl.startsWith("data:")) {
+      applyResolvedSrc(rawUrl, false);
+      return;
+    }
+
     const sourceUrl = getCoverImageSourceUrl(src);
     const absUrl = toAbsUrl(rawUrl, sourceUrl || baseUrl);
     status.value = "loading";

@@ -107,6 +107,38 @@ fn base64_decode(input: &str) -> CommandResult<Vec<u8>> {
     Ok(out)
 }
 
+fn hex_val(c: u8) -> Option<u8> {
+    match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        b'A'..=b'F' => Some(c - b'A' + 10),
+        _ => None,
+    }
+}
+
+fn percent_decode(input: &str) -> CommandResult<Vec<u8>> {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' {
+            if i + 2 >= bytes.len() {
+                return Err(CommandError::invalid("data: URL percent 解码失败"));
+            }
+            let hi = hex_val(bytes[i + 1])
+                .ok_or_else(|| CommandError::invalid("data: URL percent 解码失败"))?;
+            let lo = hex_val(bytes[i + 2])
+                .ok_or_else(|| CommandError::invalid("data: URL percent 解码失败"))?;
+            out.push((hi << 4) | lo);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    Ok(out)
+}
+
 /// 查询/获取封面缓存：
 /// - data: URL（生成封面）：解码后直接写缓存返回
 /// - http(s)：命中直接返回；未命中带 Referer/headers 下载（reqwest，绕开 CORS）
@@ -127,7 +159,7 @@ pub async fn cover_resolve_cache(
         let bytes = if meta.ends_with(";base64") {
             base64_decode(payload)?
         } else {
-            return Err(CommandError::invalid("仅支持 base64 的 data: URL"));
+            percent_decode(payload)?
         };
         let (local_path, local_ref) = write_cache(&state.data_dir, &key, &bytes, mime)?;
         return Ok(CoverResolveResult { local_path, local_ref });
